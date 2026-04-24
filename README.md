@@ -1,5 +1,9 @@
 # @quickdesign/cli
 
+[![npm](https://img.shields.io/npm/v/@quickdesign/cli.svg?color=cb3837&label=npm)](https://www.npmjs.com/package/@quickdesign/cli)
+[![node](https://img.shields.io/node/v/@quickdesign/cli.svg?color=339933)](https://www.npmjs.com/package/@quickdesign/cli)
+[![license](https://img.shields.io/npm/l/@quickdesign/cli.svg?color=blue)](./LICENSE)
+
 Command-line interface for [QuickDesign](https://quickdesign.io) — generate images and videos, mine competitor ads from the Spy Brands database, and automate brand workflows from your terminal, a CI pipeline, or a Claude Code agent.
 
 ## Install
@@ -9,6 +13,8 @@ npm install -g @quickdesign/cli
 ```
 
 Requires Node.js ≥ 18.17.
+
+> **Heads-up:** `quickdesign login` (browser flow) requires the QuickDesign web app's `/cli-auth` route to be deployed. Until then, use `quickdesign login --token <JWT>` (paste a Supabase access token from your logged-in browser session) or set `QUICKDESIGN_TOKEN` in your environment.
 
 ## Quickstart
 
@@ -125,6 +131,28 @@ export QUICKDESIGN_TOKEN="<your local supabase jwt>"
 quickdesign whoami
 quickdesign spy brands --search anything --limit 3 --human
 ```
+
+## Releasing
+
+Publishes are automated via GitHub Actions (`.github/workflows/publish.yml`). A tag push to `main` triggers `npm publish`.
+
+One-time repo setup (maintainers):
+
+1. Create a [granular access token](https://www.npmjs.com/settings/~/tokens) on npm — scope `@quickdesign`, read+write, bypass-2FA.
+2. Add it to the repo as a GitHub secret named `NPM_TOKEN` (Settings → Secrets and variables → Actions).
+
+Cut a release:
+
+```bash
+# bump + tag + commit
+npm version patch        # or: minor / major
+git push --follow-tags   # CI takes over, runs build + publish
+
+# dry-run via Actions UI:
+gh workflow run publish.yml -f dry_run=true
+```
+
+The workflow also verifies the git tag matches `package.json#version` before publishing, so `v0.1.2` tag + `package.json: 0.1.1` will fail loudly rather than mis-tag the release.
 
 ## Roadmap
 
