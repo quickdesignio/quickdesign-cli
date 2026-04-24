@@ -4,7 +4,14 @@
 [![node](https://img.shields.io/node/v/@quickdesign/cli.svg?color=339933)](https://www.npmjs.com/package/@quickdesign/cli)
 [![license](https://img.shields.io/npm/l/@quickdesign/cli.svg?color=blue)](./LICENSE)
 
-Command-line interface for [QuickDesign](https://quickdesign.io) — generate images and videos, mine competitor ads from the Spy Brands database, and automate brand workflows from your terminal, a CI pipeline, or a Claude Code agent.
+Command-line interface for [QuickDesign](https://quickdesign.io) — built so anyone (or any Claude Code agent) can drive the full QuickDesign stack from a terminal:
+
+- **Generate** AI images (Nano Banana, GPT Image) and videos (Sora 2, Kling, **Seedance 2.0** including reference-to-video, UGC) — start, poll, save to disk in one command.
+- **Smart Ad Creator** — turn a product URL into a single concept ad, or fan out 16 concepts in parallel (Advantage+).
+- **Spy Brands** — query the competitor ad library: per-brand ads, cross-brand winners, this-week trends.
+- **Brand DNA** — scrape a website's colors / fonts / logo, or run the full Claude-streamed Brand DNA extraction (voice, audience, offer).
+- **Designs** — list, fetch, download, or archive your saved creatives directly from PostgREST.
+- **Ship-ready** — JSON to stdout, diagnostics to stderr, exit codes for pipelines, optional `--human` pretty-print.
 
 ## Install
 
@@ -19,21 +26,40 @@ Requires Node.js ≥ 18.17.
 ## Quickstart
 
 ```bash
-# One-time browser login
+# One-time browser login (or: --token <JWT> for CI / headless)
 quickdesign login
 
 # Verify the session
 quickdesign whoami
 
-# Search competitors and pull a brand's ads
+# --- Spy Brands ---------------------------------------------------------
 quickdesign spy brands --search "Kizik" --human
-quickdesign spy brand-ads <brand-id> --status active --limit 5 --human
+quickdesign spy brand-ads <brand-id> --status active --sort most_impressions --limit 5
 
-# Generate an image (blocks until ready, saves to disk)
+# --- Image: studio shot, save to disk -----------------------------------
 quickdesign image generate \
   --prompt "studio photo of a silver bracelet on white background" \
-  --model nano-banana-2 \
-  --wait -o ./bracelet.jpg
+  --model nano-banana-2 --wait -o ./bracelet.jpg
+
+# --- Video: Seedance 2.0 r2v with two reference images ------------------
+quickdesign video generate --provider seedance \
+  --reference-image https://cdn.example.com/bracelet.jpg \
+  --reference-image https://cdn.example.com/model.jpg \
+  --prompt "@Image2 wearing @Image1, slow catwalk" \
+  --aspect-ratio 9:16 --duration 5 --wait -o ./catwalk.mp4
+
+# --- Smart Ad Creator: 16 concepts in parallel --------------------------
+quickdesign ad-creator advantage-plus \
+  --product-url https://kizik.com/products/bowen-black --wait -o ./ads
+ls ./ads/   # one .jpg per completed concept
+
+# --- Brand DNA (Claude-streamed) ----------------------------------------
+quickdesign brand dna https://kizik.com
+
+# --- Your designs -------------------------------------------------------
+export QUICKDESIGN_SUPABASE_ANON_KEY="<your supabase anon key>"
+quickdesign design list --limit 10
+quickdesign design download <id> -o ./out.jpg
 ```
 
 ## Authentication
