@@ -17,6 +17,12 @@ import { join, dirname } from 'node:path';
 
 export const DEFAULT_BASE_URL = 'https://app.quickdesign.io';
 
+/**
+ * Prod Supabase project — published value, visible in any SPA bundle. Safe to
+ * hardcode as a fallback since the anon key (public by design) is gated by RLS.
+ */
+export const DEFAULT_SUPABASE_URL = 'https://jllrbrclicuskxxpwozh.supabase.co';
+
 export interface StoredConfig {
   token?: string;
   userId?: string;
@@ -24,6 +30,10 @@ export interface StoredConfig {
   /** Unix seconds, not milliseconds. */
   expiresAt?: number;
   baseUrl?: string;
+  /** Override Supabase REST base (default: DEFAULT_SUPABASE_URL). */
+  supabaseUrl?: string;
+  /** Supabase anon key — required for `design` subcommands that hit PostgREST directly. */
+  supabaseAnonKey?: string;
 }
 
 export function configPath(): string {
@@ -92,4 +102,26 @@ export function tokenStillValid(c: StoredConfig = readConfig()): boolean {
   if (!c.token) return false;
   if (!c.expiresAt) return true;                              // legacy / missing — treat as valid
   return c.expiresAt * 1000 > Date.now() + 60 * 1000;
+}
+
+/**
+ * Effective Supabase REST base URL — env > config > hardcoded prod default.
+ * `design` subcommands need this to hit PostgREST directly with the user's JWT.
+ */
+export function resolveSupabaseUrl(): string {
+  return (
+    process.env.QUICKDESIGN_SUPABASE_URL?.trim()
+    || readConfig().supabaseUrl
+    || DEFAULT_SUPABASE_URL
+  );
+}
+
+/**
+ * Effective Supabase anon key — env > config. No hardcoded default; if missing,
+ * `design` subcommands error out with a clear message.
+ */
+export function resolveSupabaseAnonKey(): string | undefined {
+  const env = process.env.QUICKDESIGN_SUPABASE_ANON_KEY?.trim();
+  if (env) return env;
+  return readConfig().supabaseAnonKey || undefined;
 }

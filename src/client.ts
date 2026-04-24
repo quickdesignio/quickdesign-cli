@@ -5,7 +5,15 @@
  *  - normalizes errors → ApiError (with status + server body)
  *  - supports JSON responses + raw streaming (for SSE endpoints)
  */
-import { resolveBaseUrl, resolveToken, tokenStillValid, readConfig } from './config.js';
+import {
+  resolveBaseUrl,
+  resolveToken,
+  tokenStillValid,
+  readConfig,
+  resolveSupabaseUrl,
+  resolveSupabaseAnonKey,
+} from './config.js';
+import { parseSse, type SseFrame } from './utils/sse.js';
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -111,6 +119,153 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
 
   if (!res.ok) {
     const message = (parsed as { error?: string } | null)?.error
+      ?? `${res.status} ${res.statusText}`;
+    throw new ApiError(message, res.status, parsed, path);
+  }
+
+  return parsed as T;
+}
+
+/**
+ * POST a JSON body to an SSE endpoint and yield parsed frames.
+ *
+ * The BFF's brand-dna endpoint (and likely future Claude-streamed endpoints)
+ * use Server-Sent Events. Node's fetch doesn't ship an EventSource, so we POST
+ * manually and feed the response body to the line-buffered parser in
+ * `utils/sse.ts`.
+ */
+export async function* streamSse<T = unknown>(
+  path: string,
+  body: unknown,
+  opts: Omit<RequestOptions, 'raw' | 'body' | 'method'> = {},
+): AsyncIterable<SseFrame<T>> {
+  const url = buildUrl(path, opts.query);
+  const headers: Record<string, string> = {
+    Accept: 'text/event-stream',
+    'Content-Type': 'application/json',
+    ...(opts.headers ?? {}),
+  };
+
+  const wantAuth = opts.auth !== false;
+  if (wantAuth) {
+    const token = resolveToken();
+    if (token) {
+      const cfg = readConfig();
+      if (!tokenStillValid({ ...cfg, token })) {
+        throw new ApiError(
+          'Your QuickDesign token has expired. Run `quickdesign login` to get a new one.',
+          401,
+          { code: 'TOKEN_EXPIRED' },
+          path,
+        );
+      }
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body ?? {}),
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let parsed: unknown = text;
+    try { parsed = JSON.parse(text); } catch { /* keep text */ }
+    const message = (parsed as { error?: string } | null)?.error ?? `${res.status} ${res.statusText}`;
+    throw new ApiError(message, res.status, parsed, path);
+  }
+
+  yield* parseSse<T>(res.body);
+}
+
+/**
+ * Call Supabase's PostgREST directly with the user's JWT.
+ *
+ * `designs` and other user-owned tables have RLS that filters on
+ * `createdBy = auth.uid()`, so using the anon key + the user's JWT is both
+ * safe and matches the frontend's pattern (see
+ * `src/components/AssetSelectionModal/utils/supabaseQuery.ts`).
+ *
+ * Returns the parsed JSON body; set `opts.raw = true` to get the Response.
+ */
+export async function requestSupabase<T = unknown>(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<T> {
+  const base = resolveSupabaseUrl().replace(/\/$/, '');
+  const clean = path.startsWith('/') ? path : `/${path}`;
+  const url = new URL(`${base}${clean}`);
+  if (opts.query) {
+    for (const [k, v] of Object.entries(opts.query)) {
+      if (v === undefined || v === null) continue;
+      url.searchParams.set(k, String(v));
+    }
+  }
+
+  const anonKey = resolveSupabaseAnonKey();
+  if (!anonKey) {
+    throw new ApiError(
+      'Supabase anon key is not configured. Set QUICKDESIGN_SUPABASE_ANON_KEY or run `quickdesign config set supabase_anon_key <key>`.',
+      500,
+      { code: 'MISSING_ANON_KEY' },
+      path,
+    );
+  }
+
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    apikey: anonKey,
+    ...(opts.headers ?? {}),
+  };
+
+  const wantAuth = opts.auth !== false;
+  if (wantAuth) {
+    const token = resolveToken();
+    if (!token) {
+      throw new ApiError(
+        'Not logged in. Run `quickdesign login` or set QUICKDESIGN_TOKEN.',
+        401,
+        { code: 'NO_TOKEN' },
+        path,
+      );
+    }
+    const cfg = readConfig();
+    if (!tokenStillValid({ ...cfg, token })) {
+      throw new ApiError(
+        'Your QuickDesign token has expired. Run `quickdesign login` to get a new one.',
+        401,
+        { code: 'TOKEN_EXPIRED' },
+        path,
+      );
+    }
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  let body: BodyInit | undefined;
+  if (opts.body !== undefined && opts.body !== null) {
+    body = JSON.stringify(opts.body);
+    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
+  }
+
+  const res = await fetch(url, {
+    method: opts.method ?? (body ? 'POST' : 'GET'),
+    headers,
+    body,
+    signal: opts.signal,
+  });
+
+  const text = await res.text();
+  let parsed: unknown = text;
+  if (text) {
+    try { parsed = JSON.parse(text); } catch { /* keep text */ }
+  }
+
+  if (!res.ok) {
+    const message = (parsed as { message?: string; error?: string } | null)?.message
+      ?? (parsed as { error?: string } | null)?.error
       ?? `${res.status} ${res.statusText}`;
     throw new ApiError(message, res.status, parsed, path);
   }

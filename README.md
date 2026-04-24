@@ -64,12 +64,14 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 
 ## Environment variables
 
-| Variable              | Purpose                                                              |
-| --------------------- | -------------------------------------------------------------------- |
-| `QUICKDESIGN_BASE_URL`| Override API base URL (default `https://app.quickdesign.io`)          |
-| `QUICKDESIGN_TOKEN`   | Override the stored token (takes precedence over `auth.json`)         |
+| Variable                        | Purpose                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `QUICKDESIGN_BASE_URL`          | Override API base URL (default `https://app.quickdesign.io`)                                        |
+| `QUICKDESIGN_TOKEN`             | Override the stored token (takes precedence over `auth.json`)                                       |
+| `QUICKDESIGN_SUPABASE_URL`      | Override Supabase REST base (default: prod project). Used only by `design` subcommands.             |
+| `QUICKDESIGN_SUPABASE_ANON_KEY` | Supabase anon key. **Required** for `design` subcommands (PostgREST-direct; RLS scopes to user).    |
 
-## Commands (v0.1)
+## Commands (v0.2)
 
 ### `auth`
 
@@ -101,6 +103,46 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `result <requestId> [-o path]` | Fetch finished job result |
 | `history [--limit]` | List past image jobs |
 | `models` | Discover available image models |
+
+### `video` — Sora 2 / Kling / Seedance 2.0 / UGC
+
+| Command | Notes |
+| --- | --- |
+| `generate --provider <sora2\|kling\|seedance\|ugc> --prompt … [--image \| --reference-image…] [--audio] [--duration] [--aspect-ratio] [--resolution] [--wait] [-o path]` | Start + optional poll + optional save. Seedance 2.0 r2v is activated by `--reference-image` (1+). UGC requires both `--image` and `--audio`. |
+| `status <provider> <jobId>` | Poll job status |
+| `history <provider> [--limit] [--status]` | List jobs for a provider |
+| `upscale --video <url> --provider <topaz\|bytedance> [--factor] [--wait] [-o path]` | Kick off a Topaz/ByteDance video upscale |
+| `upscale-status <jobId>` | Poll an upscale job |
+| `upscale-history [--limit]` | List upscale jobs |
+
+### `brand`
+
+| Command | Notes |
+| --- | --- |
+| `scrape <url>` | Sync scrape — returns colors, fonts, logo, description |
+| `dna <url> [--output json\|events]` | Full Brand DNA via Claude (SSE). Default prints the final JSON; `--output events` emits NDJSON of every frame (agents) |
+
+### `ad-creator` — Smart Ad Creator
+
+| Command | Notes |
+| --- | --- |
+| `concepts [--human]` | List available concept slugs |
+| `analyze <product-url>` | Extract product name, images, features, audience |
+| `generate --product-url --concept <slug> [--brand-kit] [--wait] [-o path]` | Single-concept async job |
+| `advantage-plus --product-url [--brand-kit] [--wait] [-o dir]` | Fan out 16 concepts. With `-o <dir>`, every completed concept is saved to `<dir>/<concept>.jpg` |
+| `status <requestId>` | Poll a single ad-creator job |
+| `batch-status <batchId>` | Poll an advantage+ batch |
+
+### `design`
+
+PostgREST-direct (user JWT + RLS). Requires `QUICKDESIGN_SUPABASE_ANON_KEY`.
+
+| Command | Notes |
+| --- | --- |
+| `list [--limit] [--offset] [--category] [--assets-only] [--archived]` | Your designs (most recent first) |
+| `get <id>` | Full row |
+| `delete <id>` | Soft-delete (sets `isArchived = true`) |
+| `download <id> -o <path>` | Save the design's image or video to disk |
 
 ## Claude Code skill
 
@@ -156,9 +198,12 @@ The workflow also verifies the git tag matches `package.json#version` before pub
 
 ## Roadmap
 
-- **v0.2** — `video generate` across Sora 2 / Kling / Seedance / UGC, `ad-creator` commands, streaming SSE support
+- **v0.1** ✅ — Auth (browser OAuth + token fallbacks), `spy`, `image`, Claude Code skill
+- **v0.2** ✅ — `video` (Sora 2 / Kling / Seedance 2.0 incl. r2v / UGC + upscale), `brand`
+  (scraper + SSE DNA), `ad-creator` (single + advantage+), `design` (list / get / delete /
+  download — PostgREST-direct)
 - **v0.3** — refresh-token handling (no manual re-login at token expiry)
-- **v0.4** — `design list|get|update` for iterating on saved assets
+- **v0.4** — local-file sources (`--image ./foo.jpg`) via auto-upload to R2
 - **v1.0** — plugins, opt-in telemetry, Homebrew tap
 
 ## License
