@@ -304,6 +304,44 @@ export function registerVideoCommands(program: Command): void {
     });
 
   video
+    .command('wait')
+    .description('Resume waiting on a previously-started video job and (optionally) save the result')
+    .argument('<provider>', `One of: ${PROVIDERS.join(' | ')}`)
+    .argument('<jobId>', 'Job id returned by `generate`')
+    .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 1_800_000)
+    .option('--interval <ms>', 'Poll interval in ms', (v) => parseInt(v, 10), 5_000)
+    .option('-o, --output <path>', 'Save the result video to this path')
+    .action(async (provider: Provider, jobId: string, opts: { timeout?: number; interval?: number; output?: string }) => {
+      try {
+        if (!PROVIDERS.includes(provider)) fail(`Unknown provider: ${provider}`, 2);
+        const routes = providerRoutes(provider);
+
+        const spin = ora({ text: `Waiting for ${provider} (${jobId})…`, stream: process.stderr }).start();
+        const status = await pollUntilDone<BffStatusResponse>(async () => {
+          const s = await request<BffStatusResponse>(`${routes.status}/${jobId}`);
+          if (s.data?.status === 'failed') return { done: false, error: s.data.error ?? 'Generation failed' };
+          if (s.data?.status !== 'completed') {
+            spin.text = `Waiting for ${provider} (${jobId})… ${s.data?.status ?? '?'}${s.data?.pipeline_stage ? ` · ${s.data.pipeline_stage}` : ''}`;
+            return { done: false };
+          }
+          return { done: true, result: s };
+        }, { intervalMs: opts.interval, timeoutMs: opts.timeout });
+        spin.succeed(`${provider} video ready`);
+
+        const videoUrl = extractResultUrl(status);
+        if (!videoUrl) fail(`Result had no video URL: ${JSON.stringify(status)}`);
+
+        if (opts.output) {
+          await downloadTo(videoUrl!, opts.output);
+          note(`Saved ${opts.output}`);
+          emitJson({ provider, request_id: jobId, url: videoUrl, outputPath: opts.output });
+        } else {
+          emitJson({ provider, request_id: jobId, url: videoUrl });
+        }
+      } catch (err) { fail(err); }
+    });
+
+  video
     .command('history')
     .description("List your video generation jobs for a provider")
     .argument('<provider>', `One of: ${PROVIDERS.join(' | ')}`)
@@ -410,6 +448,40 @@ export function registerVideoCommands(program: Command): void {
       try {
         const s = await request<BffStatusResponse>(`/api/async-video-upscale/status/${jobId}`);
         emitJson(s);
+      } catch (err) { fail(err); }
+    });
+
+  video
+    .command('upscale-wait')
+    .description('Resume waiting on a previously-started upscale job and (optionally) save the result')
+    .argument('<jobId>', 'Job id returned by `upscale`')
+    .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 1_800_000)
+    .option('--interval <ms>', 'Poll interval in ms', (v) => parseInt(v, 10), 5_000)
+    .option('-o, --output <path>', 'Save the upscaled video to this path')
+    .action(async (jobId: string, opts: { timeout?: number; interval?: number; output?: string }) => {
+      try {
+        const spin = ora({ text: `Waiting for upscale (${jobId})…`, stream: process.stderr }).start();
+        const status = await pollUntilDone<BffStatusResponse>(async () => {
+          const s = await request<BffStatusResponse>(`/api/async-video-upscale/status/${jobId}`);
+          if (s.data?.status === 'failed') return { done: false, error: s.data.error ?? 'Upscale failed' };
+          if (s.data?.status !== 'completed') {
+            spin.text = `Waiting for upscale (${jobId})… ${s.data?.status ?? '?'}`;
+            return { done: false };
+          }
+          return { done: true, result: s };
+        }, { intervalMs: opts.interval, timeoutMs: opts.timeout });
+        spin.succeed('Upscale ready');
+
+        const videoUrl = extractResultUrl(status);
+        if (!videoUrl) fail(`Result had no video URL: ${JSON.stringify(status)}`);
+
+        if (opts.output) {
+          await downloadTo(videoUrl!, opts.output);
+          note(`Saved ${opts.output}`);
+          emitJson({ request_id: jobId, url: videoUrl, outputPath: opts.output });
+        } else {
+          emitJson({ request_id: jobId, url: videoUrl });
+        }
       } catch (err) { fail(err); }
     });
 

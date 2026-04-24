@@ -130,6 +130,41 @@ export function registerImageCommands(program: Command): void {
     });
 
   image
+    .command('wait')
+    .description('Resume waiting on a previously-started image job and (optionally) save the result')
+    .argument('<requestId>', 'Request ID returned by `generate`')
+    .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 600_000)
+    .option('--interval <ms>', 'Poll interval in ms', (v) => parseInt(v, 10), 2_000)
+    .option('-o, --output <path>', 'Save the first image to this path')
+    .action(async (requestId: string, opts: { timeout?: number; interval?: number; output?: string }) => {
+      try {
+        const spin = ora({ text: `Waiting for image (${requestId})…`, stream: process.stderr }).start();
+        const result = await pollUntilDone<ResultResponse>(async () => {
+          const s = await request<StatusResponse>(`/api/image-generation/status/${requestId}`, { auth: false });
+          if (s.status === 'failed') return { done: false, error: s.error ?? 'Generation failed' };
+          if (s.status !== 'completed') {
+            spin.text = `Waiting for image (${requestId})… ${s.status}${s.progress != null ? ` · ${s.progress}%` : ''}`;
+            return { done: false };
+          }
+          const r = await request<ResultResponse>(`/api/image-generation/result/${requestId}`, { auth: false });
+          return { done: true, result: r };
+        }, { intervalMs: opts.interval, timeoutMs: opts.timeout });
+        spin.succeed('Image ready');
+
+        const url = result.imageUrl ?? result.images?.[0]?.url ?? result.images?.[0]?.imageUrl;
+        if (!url) fail(`Result had no image URL: ${JSON.stringify(result)}`);
+
+        if (opts.output) {
+          await downloadTo(url!, opts.output);
+          note(`Saved ${opts.output}`);
+          emitJson({ request_id: requestId, url, outputPath: opts.output, designId: result.design_id });
+        } else {
+          emitJson({ request_id: requestId, url, designId: result.design_id });
+        }
+      } catch (err) { fail(err); }
+    });
+
+  image
     .command('history')
     .description("List your image generation jobs")
     .option('--limit <n>', 'Limit', (v) => parseInt(v, 10), 20)

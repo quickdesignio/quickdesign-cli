@@ -125,7 +125,8 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | Command | Notes |
 | --- | --- |
 | `generate --prompt … [--model] [--wait] [-o path]` | Async start + optional poll + optional save |
-| `status <requestId>` | Poll job status |
+| `status <requestId>` | One-shot status check |
+| `wait <requestId> [--timeout] [-o path]` | Resume polling on a job started earlier and optionally download |
 | `result <requestId> [-o path]` | Fetch finished job result |
 | `history [--limit]` | List past image jobs |
 | `models` | Discover available image models |
@@ -135,10 +136,12 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | Command | Notes |
 | --- | --- |
 | `generate --provider <sora2\|kling\|seedance\|ugc> --prompt … [--image \| --reference-image…] [--audio] [--duration] [--aspect-ratio] [--resolution] [--wait] [-o path]` | Start + optional poll + optional save. Seedance 2.0 r2v is activated by `--reference-image` (1+). UGC requires both `--image` and `--audio`. |
-| `status <provider> <jobId>` | Poll job status |
+| `status <provider> <jobId>` | One-shot status check |
+| `wait <provider> <jobId> [--timeout] [-o path]` | Resume polling on a job started earlier (default timeout 30 min) and optionally download |
 | `history <provider> [--limit] [--status]` | List jobs for a provider |
 | `upscale --video <url> --provider <topaz\|bytedance> [--factor] [--wait] [-o path]` | Kick off a Topaz/ByteDance video upscale |
-| `upscale-status <jobId>` | Poll an upscale job |
+| `upscale-status <jobId>` | One-shot status check |
+| `upscale-wait <jobId> [--timeout] [-o path]` | Resume polling on an upscale job |
 | `upscale-history [--limit]` | List upscale jobs |
 
 ### `brand`
@@ -156,8 +159,10 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `analyze <product-url>` | Extract product name, images, features, audience |
 | `generate --product-url --concept <slug> [--brand-kit] [--wait] [-o path]` | Single-concept async job |
 | `advantage-plus --product-url [--brand-kit] [--wait] [-o dir]` | Fan out 16 concepts. With `-o <dir>`, every completed concept is saved to `<dir>/<concept>.jpg` |
-| `status <requestId>` | Poll a single ad-creator job |
-| `batch-status <batchId>` | Poll an advantage+ batch |
+| `status <requestId>` | One-shot status check |
+| `wait <requestId> [--timeout] [-o path]` | Resume polling on a single ad job |
+| `batch-status <batchId>` | One-shot batch status |
+| `batch-wait <batchId> [--timeout] [-o dir]` | Resume polling on an advantage+ batch + download every completed concept |
 
 ### `design`
 
@@ -169,6 +174,32 @@ PostgREST-direct (user JWT + RLS). Requires `QUICKDESIGN_SUPABASE_ANON_KEY`.
 | `get <id>` | Full row |
 | `delete <id>` | Soft-delete (sets `isArchived = true`) |
 | `download <id> -o <path>` | Save the design's image or video to disk |
+
+## Long-running jobs
+
+Video generations and Advantage+ batches commonly take 5–15 minutes. The CLI is polling-only (no inbound webhook into your laptop), so you have three options:
+
+**1. Block in the foreground.** Pass `--wait -o ./out.mp4` and the CLI polls + downloads in one step. `--timeout <ms>` controls the cap (default 15 min for video, 30 min for upscale and batches).
+
+**2. Fire-and-forget, resume later.** Start the job, capture the request id, walk away, then resume:
+
+```bash
+# start (returns immediately)
+JOB=$(quickdesign video generate --provider seedance \
+  --image https://cdn/foo.jpg --prompt "..." | jq -r '.request_id')
+echo $JOB > /tmp/myjob.id
+
+# minutes later — same machine, another terminal, or even a cron tick
+quickdesign video wait seedance "$JOB" --timeout 1800000 -o ./out.mp4
+```
+
+`wait` re-polls the BFF, downloads when ready, and prints the same JSON shape as `--wait` would have.
+
+**3. Background it.** `nohup quickdesign video generate ... --wait -o ./out.mp4 > job.log 2>&1 &` then `tail -f job.log`.
+
+For Advantage+ batches use `ad-creator batch-wait <batchId> -o ./ads` — same idea but downloads every completed concept to the directory.
+
+The job state itself lives in the BFF (`ugc_video_jobs` / `image_generation_jobs` tables) so you can leave a job for hours and pick it up later. Result URLs (R2) don't expire.
 
 ## Claude Code skill
 

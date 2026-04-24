@@ -282,6 +282,41 @@ export function registerAdCreatorCommands(program: Command): void {
     });
 
   ad
+    .command('wait')
+    .description('Resume waiting on a previously-started single ad job and (optionally) save the result')
+    .argument('<requestId>', 'Request ID returned by `generate`')
+    .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 1_200_000)
+    .option('--interval <ms>', 'Poll interval in ms', (v) => parseInt(v, 10), 3_000)
+    .option('-o, --output <path>', 'Save the image to this path')
+    .action(async (requestId: string, opts: { timeout?: number; interval?: number; output?: string }) => {
+      try {
+        const spin = ora({ text: `Waiting for ad creative (${requestId})…`, stream: process.stderr }).start();
+        const result = await pollUntilDone<ResultResponse>(async () => {
+          const s = await request<StatusResponse>(`/api/smart-ad-creator/status/${requestId}`);
+          if (s.status === 'failed') return { done: false, error: s.error ?? 'Generation failed' };
+          if (s.status !== 'completed') {
+            spin.text = `Waiting for ad creative (${requestId})… ${s.status}${s.progress != null ? ` · ${s.progress}%` : ''}`;
+            return { done: false };
+          }
+          const r = await request<ResultResponse>(`/api/smart-ad-creator/result/${requestId}`);
+          return { done: true, result: r };
+        }, { intervalMs: opts.interval, timeoutMs: opts.timeout });
+        spin.succeed('Ad creative ready');
+
+        const url = firstUrl(result);
+        if (!url) fail(`Result had no image URL: ${JSON.stringify(result)}`);
+
+        if (opts.output) {
+          await downloadTo(url!, opts.output);
+          note(`Saved ${opts.output}`);
+          emitJson({ request_id: requestId, url, outputPath: opts.output, designId: result.design_id });
+        } else {
+          emitJson({ request_id: requestId, url, designId: result.design_id });
+        }
+      } catch (err) { fail(err); }
+    });
+
+  ad
     .command('batch-status')
     .description('Check an advantage+ batch status')
     .argument('<batchId>', 'Batch ID')
@@ -291,6 +326,64 @@ export function registerAdCreatorCommands(program: Command): void {
           `/api/smart-ad-creator/advantage-plus/status/${batchId}`,
         );
         emitJson(r);
+      } catch (err) { fail(err); }
+    });
+
+  ad
+    .command('batch-wait')
+    .description('Resume waiting on an advantage+ batch and (optionally) download every completed concept')
+    .argument('<batchId>', 'Batch ID returned by `advantage-plus`')
+    .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 1_800_000)
+    .option('--interval <ms>', 'Poll interval in ms', (v) => parseInt(v, 10), 5_000)
+    .option('-o, --output <dir>', 'Save each completed image to <dir>/<concept>.jpg')
+    .action(async (batchId: string, opts: { timeout?: number; interval?: number; output?: string }) => {
+      try {
+        const spin = ora({ text: `Waiting for advantage+ batch ${batchId}…`, stream: process.stderr }).start();
+        const final = await pollUntilDone<BatchStatusResponse>(async () => {
+          const s = await request<BatchStatusResponse>(
+            `/api/smart-ad-creator/advantage-plus/status/${batchId}`,
+          );
+          const doneCount = (s.completed ?? 0) + (s.failed ?? 0);
+          spin.text = `Advantage+ ${batchId}: ${s.completed}/${s.total} done (${s.failed} failed)`;
+          if (doneCount >= s.total) return { done: true, result: s };
+          return { done: false };
+        }, { intervalMs: opts.interval, timeoutMs: opts.timeout });
+
+        const outDir = opts.output;
+        if (outDir) {
+          await mkdir(outDir, { recursive: true });
+          await Promise.all(
+            final.jobs
+              .filter((j) => j.status === 'completed')
+              .map(async (j) => {
+                const url = j.imageUrl ?? j.images?.[0]?.url ?? j.images?.[0]?.imageUrl ?? j.images?.[0]?.storage_url;
+                if (!url) return;
+                const path = join(outDir, `${j.concept.replace(/[^a-z0-9._-]+/gi, '_')}.jpg`);
+                try {
+                  await downloadTo(url, path);
+                } catch (err) {
+                  note(`  skipped ${j.concept}: ${err instanceof Error ? err.message : String(err)}`);
+                }
+              }),
+          );
+          spin.succeed(`Advantage+ finished — saved to ${outDir}`);
+        } else {
+          spin.succeed(`Advantage+ finished — ${final.completed}/${final.total} completed`);
+        }
+
+        emitJson({
+          batch_id: final.batch_id,
+          total: final.total,
+          completed: final.completed,
+          failed: final.failed,
+          outputDir: outDir,
+          jobs: final.jobs.map((j) => ({
+            concept: j.concept,
+            status: j.status,
+            url: j.imageUrl ?? j.images?.[0]?.url ?? j.images?.[0]?.imageUrl ?? j.images?.[0]?.storage_url,
+            error: j.error,
+          })),
+        });
       } catch (err) { fail(err); }
     });
 }
