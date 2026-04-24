@@ -112,8 +112,8 @@ behalf when a user asks for image generation, ad research, or brand analysis.
 ## Development
 
 ```bash
-git clone https://github.com/quickdesign/cli
-cd cli
+git clone https://github.com/eneskirca/quickdesign-cli
+cd quickdesign-cli
 npm install
 npm run build
 npm link                           # makes `quickdesign` available on PATH
