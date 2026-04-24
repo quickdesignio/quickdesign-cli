@@ -1,0 +1,56 @@
+{
+  "name": "@quickdesign/cli",
+  "version": "0.1.0",
+  "description": "QuickDesign CLI — image + video generation, spy brands, brand analysis from your terminal or Claude Code.",
+  "keywords": [
+    "quickdesign",
+    "cli",
+    "ai",
+    "image-generation",
+    "video-generation",
+    "spy-brands",
+    "meta-ad-library",
+    "claude-code"
+  ],
+  "license": "MIT",
+  "author": "QuickDesign",
+  "homepage": "https://quickdesign.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/quickdesign/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/quickdesign/cli/issues"
+  },
+  "type": "module",
+  "bin": {
+    "quickdesign": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "lint": "echo \"(lint not configured)\"",
+    "link:local": "npm run build && npm link",
+    "unlink:local": "npm unlink -g @quickdesign/cli"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "kleur": "^4.1.5",
+    "open": "^10.1.0",
+    "ora": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "typescript": "^5.4.0"
+  }
+}
