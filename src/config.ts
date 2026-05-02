@@ -11,7 +11,17 @@
  *   "baseUrl":   "https://app.quickdesign.io"  // optional override
  * }
  */
-import { mkdirSync, readFileSync, writeFileSync, chmodSync, existsSync, unlinkSync } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  chmodSync,
+  existsSync,
+  unlinkSync,
+  openSync,
+  closeSync,
+  statSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 
@@ -143,65 +153,126 @@ export function resolveSupabaseAnonKey(): string | undefined {
   return readConfig().supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY;
 }
 
+/** Path to the refresh-mutex lockfile. */
+function refreshLockPath(): string {
+  return join(dirname(configPath()), 'refresh.lock');
+}
+
+/**
+ * Acquire an exclusive cross-process lock around the Supabase refresh call.
+ *
+ * Supabase rotates refresh tokens — if two CLI processes refresh in parallel,
+ * the loser permanently invalidates the user's stored refresh_token with
+ * `refresh_token_already_used` and forces a manual re-login. This lock
+ * serializes refreshes across all `quickdesign` processes on the machine.
+ *
+ * Stale locks (from a crashed previous process) older than `staleMs` are
+ * forcibly removed before retry. Caller MUST release via the returned thunk.
+ */
+function acquireRefreshLock(timeoutMs = 30_000, staleMs = 15_000): () => void {
+  const path = refreshLockPath();
+  mkdirSync(dirname(path), { recursive: true });
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try {
+      const fd = openSync(path, 'wx', 0o600);
+      writeFileSync(fd, String(process.pid));
+      closeSync(fd);
+      return (): void => {
+        try { unlinkSync(path); } catch { /* already gone */ }
+      };
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== 'EEXIST') throw err;
+      try {
+        const age = Date.now() - statSync(path).mtimeMs;
+        if (age > staleMs) {
+          try { unlinkSync(path); } catch { /* race */ }
+          continue;
+        }
+      } catch { /* lock vanished */ continue; }
+      if (Date.now() > deadline) {
+        throw new Error(`Refresh lock contention timeout (>${timeoutMs}ms). Another quickdesign process may be stuck.`);
+      }
+      // Synchronous backoff — refresh is rare and deps-free is the point.
+      const wait = Date.now() + 200;
+      while (Date.now() < wait) { /* spin */ }
+    }
+  }
+}
+
 /**
  * Refresh the stored Supabase access token using the saved refresh token.
  *
  * Returns the new access token on success. Throws on failure — the refresh
  * token may have been rotated, expired, or revoked, in which case the caller
  * should surface a "please log in again" error.
+ *
+ * Cross-process safe: takes a file lock around the actual refresh call and
+ * re-reads the config after lock acquisition, so a parallel process that
+ * already refreshed is detected (no duplicate refresh = no `Already Used`).
  */
 export async function refreshAccessToken(): Promise<string> {
-  const cfg = readConfig();
-  if (!cfg.refreshToken) {
-    throw new Error('No refresh token stored. Run `quickdesign auth login`.');
+  const release = acquireRefreshLock();
+  try {
+    // Re-read AFTER lock — another process may have refreshed while we waited.
+    const cfg = readConfig();
+    if (cfg.token && tokenStillValid(cfg)) {
+      return cfg.token;
+    }
+    if (!cfg.refreshToken) {
+      throw new Error('No refresh token stored. Run `quickdesign auth login`.');
+    }
+    const anonKey = resolveSupabaseAnonKey();
+    if (!anonKey) {
+      throw new Error('Missing Supabase anon key — cannot refresh token.');
+    }
+
+    const base = resolveSupabaseUrl().replace(/\/$/, '');
+    const url = `${base}/auth/v1/token?grant_type=refresh_token`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ refresh_token: cfg.refreshToken }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Refresh failed (HTTP ${res.status}): ${text.slice(0, 200)}`);
+    }
+
+    const json = (await res.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      expires_at?: number;
+      user?: { id?: string; email?: string };
+    };
+
+    if (!json.access_token) {
+      throw new Error('Refresh response had no access_token');
+    }
+
+    const parsed = parseJwtExpiry(json.access_token);
+    writeConfig({
+      ...cfg,
+      token: json.access_token,
+      // Supabase rotates refresh tokens; persist the new one so the next
+      // refresh doesn't fail with "Already Used".
+      refreshToken: json.refresh_token ?? cfg.refreshToken,
+      expiresAt: parsed?.expiresAt ?? json.expires_at,
+      userId: parsed?.userId ?? json.user?.id ?? cfg.userId,
+      email: parsed?.email ?? json.user?.email ?? cfg.email,
+    });
+
+    return json.access_token;
+  } finally {
+    release();
   }
-  const anonKey = resolveSupabaseAnonKey();
-  if (!anonKey) {
-    throw new Error('Missing Supabase anon key — cannot refresh token.');
-  }
-
-  const base = resolveSupabaseUrl().replace(/\/$/, '');
-  const url = `${base}/auth/v1/token?grant_type=refresh_token`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({ refresh_token: cfg.refreshToken }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Refresh failed (HTTP ${res.status}): ${text.slice(0, 200)}`);
-  }
-
-  const json = (await res.json()) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-    expires_at?: number;
-    user?: { id?: string; email?: string };
-  };
-
-  if (!json.access_token) {
-    throw new Error('Refresh response had no access_token');
-  }
-
-  const parsed = parseJwtExpiry(json.access_token);
-  writeConfig({
-    ...cfg,
-    token: json.access_token,
-    // Supabase rotates refresh tokens; persist the new one so the next refresh
-    // doesn't fail with "Already Used".
-    refreshToken: json.refresh_token ?? cfg.refreshToken,
-    expiresAt: parsed?.expiresAt ?? json.expires_at,
-    userId: parsed?.userId ?? json.user?.id ?? cfg.userId,
-    email: parsed?.email ?? json.user?.email ?? cfg.email,
-  });
-
-  return json.access_token;
 }
 
 /**
