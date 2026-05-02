@@ -20,67 +20,90 @@ import {
 import { request, ApiError } from '../client.js';
 import { emitJson, fail, note } from '../utils/output.js';
 
-export function registerAuthCommands(program: Command): void {
-  const auth = program.command('auth').description('Authentication commands');
+export interface LoginOpts { token?: string; tokenStdin?: boolean; timeout?: number }
+export async function loginAction(opts: LoginOpts): Promise<void> {
+  try {
+    const tok = opts.token ?? (opts.tokenStdin ? await readStdinLine() : undefined);
+    if (tok) {
+      saveToken(tok);
+      return;
+    }
+    const result = await browserLogin({ timeoutMs: opts.timeout });
+    saveToken(result.token, {
+      email: result.email,
+      userId: result.userId,
+      refreshToken: result.refreshToken,
+    });
+  } catch (err) {
+    fail(err);
+  }
+}
 
-  auth
+function logoutAction(): void {
+  clearConfig();
+  note(`Removed ${configPath()}`);
+}
+
+interface WhoamiOpts { json?: boolean }
+async function whoamiAction(opts: WhoamiOpts): Promise<void> {
+  const cfg = readConfig();
+  if (!cfg.token) fail('Not logged in. Run `quickdesign login`.', 2);
+
+  const base = {
+    userId: cfg.userId,
+    email: cfg.email,
+    expiresAt: cfg.expiresAt,
+    valid: tokenStillValid(cfg),
+    hasRefreshToken: Boolean(cfg.refreshToken),
+    baseUrl: resolveBaseUrl(),
+    configFile: configPath(),
+  };
+
+  // Best-effort live ping to confirm the token is accepted by the BFF.
+  try {
+    await request<unknown>('/api/spy-brands/following', { query: { limit: 1 } });
+    const full = { ...base, pingOk: true };
+    if (opts.json) emitJson(full);
+    else printWhoami(full);
+  } catch (err) {
+    const pingErr = err instanceof ApiError ? `${err.status} ${err.message}` : String(err);
+    const full = { ...base, pingOk: false, pingError: pingErr };
+    if (opts.json) emitJson(full);
+    else printWhoami(full);
+  }
+}
+
+/** Wire the login/logout/whoami trio onto a parent (top-level program OR `auth`
+ *  subcommand). Registered on both so `quickdesign login` and `quickdesign auth
+ *  login` both work. */
+function registerAuthShortcuts(parent: Command): void {
+  parent
     .command('login')
     .description('Log in — opens a browser to finish the OAuth handshake')
     .option('--token <jwt>', 'Use a raw Supabase JWT (CI / scripted / headless)')
     .option('--token-stdin', 'Read the JWT from stdin (one line)')
-    .option('--timeout <ms>', 'Browser-flow timeout in ms', (v) => parseInt(v, 10), 120_000)
-    .action(async (opts: { token?: string; tokenStdin?: boolean; timeout?: number }) => {
-      try {
-        const tok = opts.token ?? (opts.tokenStdin ? await readStdinLine() : undefined);
-        if (tok) {
-          saveToken(tok);
-          return;
-        }
-        const result = await browserLogin({ timeoutMs: opts.timeout });
-        saveToken(result.token, { email: result.email, userId: result.userId });
-      } catch (err) {
-        fail(err);
-      }
-    });
+    .option('--timeout <ms>', 'Browser-flow timeout in ms', (v) => parseInt(v, 10), 300_000)
+    .action(loginAction);
 
-  auth
+  parent
     .command('logout')
     .description('Remove the stored auth token')
-    .action(() => {
-      clearConfig();
-      note(`Removed ${configPath()}`);
-    });
+    .action(logoutAction);
 
-  auth
+  parent
     .command('whoami')
     .description('Show the currently authenticated user')
     .option('--json', 'Emit JSON', false)
-    .action(async (opts: { json?: boolean }) => {
-      const cfg = readConfig();
-      if (!cfg.token) fail('Not logged in. Run `quickdesign login`.', 2);
+    .action(whoamiAction);
+}
 
-      const base = {
-        userId: cfg.userId,
-        email: cfg.email,
-        expiresAt: cfg.expiresAt,
-        valid: tokenStillValid(cfg),
-        baseUrl: resolveBaseUrl(),
-        configFile: configPath(),
-      };
+export function registerAuthCommands(program: Command): void {
+  // Top-level shortcuts so `quickdesign login` works.
+  registerAuthShortcuts(program);
 
-      // Best-effort live ping to confirm the token is accepted by the BFF.
-      try {
-        await request<unknown>('/api/spy-brands/following', { query: { limit: 1 } });
-        const full = { ...base, pingOk: true };
-        if (opts.json) emitJson(full);
-        else printWhoami(full);
-      } catch (err) {
-        const pingErr = err instanceof ApiError ? `${err.status} ${err.message}` : String(err);
-        const full = { ...base, pingOk: false, pingError: pingErr };
-        if (opts.json) emitJson(full);
-        else printWhoami(full);
-      }
-    });
+  // Full `auth …` namespace too, for discoverability.
+  const auth = program.command('auth').description('Authentication commands');
+  registerAuthShortcuts(auth);
 
   auth
     .command('config')
@@ -116,19 +139,35 @@ export function registerAuthCommands(program: Command): void {
     });
 }
 
-function saveToken(jwt: string, extras: { email?: string; userId?: string } = {}): void {
+function saveToken(
+  jwt: string,
+  extras: { email?: string; userId?: string; refreshToken?: string } = {},
+): void {
   const parsed = parseJwtExpiry(jwt);
   if (!parsed) fail('Provided token is not a valid JWT', 2);
   const existing = readConfig();
   writeConfig({
     ...existing,
     token: jwt,
+    refreshToken: extras.refreshToken ?? existing.refreshToken,
     userId: extras.userId ?? parsed!.userId,
     email: extras.email ?? parsed!.email,
     expiresAt: parsed!.expiresAt,
   });
   const who = extras.email ?? parsed!.email ?? extras.userId ?? parsed!.userId ?? '(anonymous)';
-  note(`Logged in as ${kleur.bold(who)}  — token stored in ${configPath()}`);
+  const refreshNote = extras.refreshToken
+    ? kleur.dim('auto-refresh enabled')
+    : kleur.yellow('no refresh token — re-run login when this expires (~1h)');
+  const expISO = parsed!.expiresAt
+    ? new Date(parsed!.expiresAt * 1000).toISOString()
+    : '(unknown)';
+  process.stderr.write(
+    `\n${kleur.green().bold('✓ Login successful')}\n` +
+    `  user    : ${kleur.bold(who)}\n` +
+    `  expires : ${expISO}  ${refreshNote}\n` +
+    `  config  : ${configPath()}\n` +
+    `\n  ${kleur.dim('try:')} ${kleur.cyan('quickdesign whoami')}\n\n`,
+  );
 }
 
 function readStdinLine(): Promise<string> {

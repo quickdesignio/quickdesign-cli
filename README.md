@@ -17,19 +17,39 @@ Command-line interface for [QuickDesign](https://quickdesign.io) — built so an
 
 ```bash
 npm install -g @quickdesign/cli
+quickdesign init        # one-time bootstrap: doctor + skill + login
 ```
 
 Requires Node.js ≥ 18.17.
 
-> **Heads-up:** `quickdesign login` (browser flow) requires the QuickDesign web app's `/cli-auth` route to be deployed. Until then, use `quickdesign login --token <JWT>` (paste a Supabase access token from your logged-in browser session) or set `QUICKDESIGN_TOKEN` in your environment.
+> **`init` does NOT run automatically after `npm install`.** That would break CI/scripted installs and silently mutate `~/.claude/skills/` without consent. You run it once, on purpose, the first time you use the CLI on a machine. After that, every `quickdesign …` call just works.
+
+`quickdesign init` does three things, each independently skippable:
+
+1. **Doctor** — checks for `ffmpeg` / `ffprobe` (needed for multi-segment video pipelines). Warns + prints install hints if missing; never blocks.
+2. **Skill install** — copies the bundled Claude Code skill into `~/.claude/skills/quickdesign/`. Refuses to overwrite existing files unless `--force`.
+3. **Auth login** — opens the browser handshake (or falls back to terminal paste; see [Authentication](#authentication)).
+
+```bash
+quickdesign init                       # full bootstrap
+quickdesign init --skill-only          # just install the skill
+quickdesign init --no-skill            # skip skill, just doctor + login
+quickdesign init --no-auth             # CI / scripted setups
+quickdesign init --no-doctor           # skip ffmpeg check
+quickdesign init --force               # overwrite existing skill files
+quickdesign init --skill-dir ~/my/skills/quickdesign   # custom target
+```
+
+For one-shot use without a global install:
+
+```bash
+npx -y @quickdesign/cli init
+```
 
 ## Quickstart
 
 ```bash
-# One-time browser login (or: --token <JWT> for CI / headless)
-quickdesign login
-
-# Verify the session
+# After `quickdesign init` you're already logged in. Verify:
 quickdesign whoami
 
 # --- Spy Brands ---------------------------------------------------------
@@ -70,7 +90,11 @@ quickdesign design download <id> -o ./out.jpg
 ~/.config/quickdesign/auth.json  (0600)
 ```
 
-For CI, skip the browser:
+The file holds the access token + refresh token, so subsequent commands transparently refresh expired sessions without re-prompting.
+
+**Manual paste fallback.** Some environments (corporate VPN, container, remote SSH, browsers that block HTTPS→localhost) can't deliver the token over the loopback handshake. While `quickdesign login` is running, the browser tab also displays the access token in a copy box — paste it into the same terminal where `login` is waiting, press Enter, and it accepts the token directly. Whichever path finishes first wins; the other is cancelled cleanly.
+
+For CI, skip the browser entirely:
 
 ```bash
 QUICKDESIGN_TOKEN=<supabase-jwt> quickdesign spy brands
@@ -97,13 +121,19 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `QUICKDESIGN_SUPABASE_URL`      | Override Supabase REST base (default: prod project). Used only by `design` subcommands.             |
 | `QUICKDESIGN_SUPABASE_ANON_KEY` | Supabase anon key. **Required** for `design` subcommands (PostgREST-direct; RLS scopes to user).    |
 
-## Commands (v0.2)
+## Commands (v0.3)
+
+### `init` — bootstrap
+
+| Command | Notes |
+| --- | --- |
+| `init [--force] [--skill-only] [--no-skill] [--no-auth] [--no-doctor] [--skill-dir <path>]` | One-shot setup: ffmpeg doctor + bundled Claude Code skill + browser login |
 
 ### `auth`
 
 | Command                      | Notes                                              |
 | ---------------------------- | -------------------------------------------------- |
-| `login`                      | Browser OAuth (fallback flags: `--token`, `--token-stdin`) |
+| `login`                      | Browser OAuth + parallel terminal-paste fallback (CI flags: `--token`, `--token-stdin`, `--timeout <ms>`) |
 | `logout`                     | Delete the stored token                            |
 | `whoami`                     | Show the active user, token expiry, live ping      |
 | `auth config show|get|set|path` | Inspect / tweak the config file                 |
@@ -143,6 +173,9 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `upscale-status <jobId>` | One-shot status check |
 | `upscale-wait <jobId> [--timeout] [-o path]` | Resume polling on an upscale job |
 | `upscale-history [--limit]` | List upscale jobs |
+| `subtitle <video> [--style tiktok\|minimal\|karaoke\|reels-pop] [--language] [--font-name] [--font-size] [--position] [--wait] [-o path]` | Burn karaoke-style auto-subtitles into a video (ElevenLabs ASR + libass; ~$0.03/min). Local files are auto-uploaded to R2. |
+| `subtitle-status <jobId>` | One-shot status check |
+| `subtitle-history [--limit]` | List subtitle jobs |
 
 ### `brand`
 
@@ -203,16 +236,15 @@ The job state itself lives in the BFF (`ugc_video_jobs` / `image_generation_jobs
 
 ## Claude Code skill
 
-The repo ships a skill stub at `skill/SKILL.md`. To enable it globally for your
-Claude Code sessions:
+The npm package bundles a complete Claude Code skill (`SKILL.md` + per-domain reference docs covering image / video / Spy Brands / Brand DNA / UGC pipelines). The recommended way to install it is `quickdesign init` (see [Install](#install)) — it copies the bundle into `~/.claude/skills/quickdesign/` and Claude Code picks it up on the next session.
 
-```bash
-mkdir -p ~/.claude/skills/quickdesign
-cp "$(npm root -g)/@quickdesign/cli/skill/SKILL.md" ~/.claude/skills/quickdesign/SKILL.md
+If you want to inspect or copy it manually instead, the bundled source lives at:
+
+```
+$(npm root -g)/@quickdesign/cli/skills/quickdesign/
 ```
 
-Claude Code will pick it up on the next session and call `quickdesign …` on your
-behalf when a user asks for image generation, ad research, or brand analysis.
+Once installed, asking Claude Code things like *"generate a UGC ad for this product page"* or *"analyze Kizik's recent ads"* will route through the skill, which calls `quickdesign …` on your behalf.
 
 ## Development
 
@@ -259,7 +291,7 @@ The workflow also verifies the git tag matches `package.json#version` before pub
 - **v0.2** ✅ — `video` (Sora 2 / Kling / Seedance 2.0 incl. r2v / UGC + upscale), `brand`
   (scraper + SSE DNA), `ad-creator` (single + advantage+), `design` (list / get / delete /
   download — PostgREST-direct)
-- **v0.3** — refresh-token handling (no manual re-login at token expiry)
+- **v0.3** ✅ — `init` bootstrap (doctor + bundled skill + login), `video subtitle` (auto-subtitle / karaoke), refresh-token handling, browser-OAuth Chrome PNA fix + parallel terminal-paste fallback
 - **v0.4** — local-file sources (`--image ./foo.jpg`) via auto-upload to R2
 - **v1.0** — plugins, opt-in telemetry, Homebrew tap
 

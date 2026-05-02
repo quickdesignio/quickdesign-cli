@@ -13,6 +13,7 @@ import { registerVideoCommands } from './commands/video.js';
 import { registerBrandCommands } from './commands/brand.js';
 import { registerAdCreatorCommands } from './commands/ad-creator.js';
 import { registerDesignCommands } from './commands/design.js';
+import { registerInitCommand } from './commands/init.js';
 import pkg from '../package.json' with { type: 'json' };
 
 const program = new Command();
@@ -53,6 +54,7 @@ registerVideoCommands(program);
 registerBrandCommands(program);
 registerAdCreatorCommands(program);
 registerDesignCommands(program);
+registerInitCommand(program);
 
 program.parseAsync(process.argv).catch((err: Error) => {
   process.stderr.write(`error: ${err.message}\n`);

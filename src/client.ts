@@ -7,9 +7,7 @@
  */
 import {
   resolveBaseUrl,
-  resolveToken,
-  tokenStillValid,
-  readConfig,
+  ensureFreshToken,
   resolveSupabaseUrl,
   resolveSupabaseAnonKey,
 } from './config.js';
@@ -63,20 +61,21 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
 
   const wantAuth = opts.auth !== false;                             // default true
   if (wantAuth) {
-    const token = resolveToken();
-    if (token) {
-      // If the stored token is visibly expired, don't even try.
-      const cfg = readConfig();
-      if (!tokenStillValid({ ...cfg, token })) {
-        throw new ApiError(
-          'Your QuickDesign token has expired. Run `quickdesign login` to get a new one.',
-          401,
-          { code: 'TOKEN_EXPIRED' },
-          path,
-        );
-      }
-      headers.Authorization = `Bearer ${token}`;
+    // Transparently refreshes a near-expired access_token if a refresh token is
+    // stored. Throws only when refresh fails outright — the caller surfaces a
+    // "log in again" message in that case.
+    let token: string | undefined;
+    try {
+      token = await ensureFreshToken();
+    } catch (err) {
+      throw new ApiError(
+        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
+        401,
+        { code: 'TOKEN_REFRESH_FAILED' },
+        path,
+      );
     }
+    if (token) headers.Authorization = `Bearer ${token}`;
   }
 
   let body: BodyInit | undefined;
@@ -148,19 +147,18 @@ export async function* streamSse<T = unknown>(
 
   const wantAuth = opts.auth !== false;
   if (wantAuth) {
-    const token = resolveToken();
-    if (token) {
-      const cfg = readConfig();
-      if (!tokenStillValid({ ...cfg, token })) {
-        throw new ApiError(
-          'Your QuickDesign token has expired. Run `quickdesign login` to get a new one.',
-          401,
-          { code: 'TOKEN_EXPIRED' },
-          path,
-        );
-      }
-      headers.Authorization = `Bearer ${token}`;
+    let token: string | undefined;
+    try {
+      token = await ensureFreshToken();
+    } catch (err) {
+      throw new ApiError(
+        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
+        401,
+        { code: 'TOKEN_REFRESH_FAILED' },
+        path,
+      );
     }
+    if (token) headers.Authorization = `Bearer ${token}`;
   }
 
   const res = await fetch(url, {
@@ -223,21 +221,22 @@ export async function requestSupabase<T = unknown>(
 
   const wantAuth = opts.auth !== false;
   if (wantAuth) {
-    const token = resolveToken();
-    if (!token) {
+    let token: string | undefined;
+    try {
+      token = await ensureFreshToken();
+    } catch (err) {
       throw new ApiError(
-        'Not logged in. Run `quickdesign login` or set QUICKDESIGN_TOKEN.',
+        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
         401,
-        { code: 'NO_TOKEN' },
+        { code: 'TOKEN_REFRESH_FAILED' },
         path,
       );
     }
-    const cfg = readConfig();
-    if (!tokenStillValid({ ...cfg, token })) {
+    if (!token) {
       throw new ApiError(
-        'Your QuickDesign token has expired. Run `quickdesign login` to get a new one.',
+        'Not logged in. Run `quickdesign auth login` or set QUICKDESIGN_TOKEN.',
         401,
-        { code: 'TOKEN_EXPIRED' },
+        { code: 'NO_TOKEN' },
         path,
       );
     }

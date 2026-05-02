@@ -1,0 +1,114 @@
+---
+name: UGC video pipeline (canonical) — multi-segment Seedance R2V with voice-continuity audio_urls reference
+description: The official method for producing talking-avatar / UGC promo videos via the QuickDesign CLI. Multi-segment Seedance 2.0 R2V calls; voice continuity is enforced by always passing segment 1's extracted audio as `--reference-audio` to all subsequent segments. Two transition styles supported on top of voice-continuity — angle-cut (nano-banana-2 reference edits) or framing-progression (same source image, only middle segments get explicit closer framing). Segments are concatenated with ffmpeg `-c copy`.
+---
+
+This is **the** method for talking-avatar UGC video production. Use it for any spoken-script video, regardless of total length.
+
+## Method
+
+1. **Plan the segments.** Count script words. Each Seedance 2.0 segment is integer 4-15s and fits ~30 words at 2 wps natural pace. Divide the script at sentence/beat boundaries so each segment lands tight (no padding). The final segment may be shorter (e.g. 8s for a punchy CTA).
+
+2. **Pick a transition style:**
+
+   **(a) Plain talking-head UGC — DEFAULT** for service explainers, creator selfie content, casual reviews. **Single reference image** for every segment. No image edits, no angle changes. Voice continuity locked via `--reference-audio` (Seg 1 audio → Segs 2..N). Each segment's prompt describes its own action beat; Seedance produces natural variation (gesture, gaze drift, micro-pose) from the same anchor — enough variety for cuts to feel intentional in casual UGC. Cost: 0 image edits, just N× R2V.
+
+   **(b) Angle-cut transitions** — for podcast / editorial / cinematic / multi-shot storytelling. Use when content has deliberate visual beats benefiting from angle changes (wide-front → 3/4 side → close mid-shot front), or when the user explicitly asks for "different angles". Generate angle-shifted reference images via nano-banana-2 for Segs 2..N. Cost: ~24cr per edit at 2K (default) or ~48cr at 4K (when product detail matters).
+
+   **(c) Framing-progression transitions** — opt-in only. Same source for every segment; middle segment gets explicit "Medium close-up framing" line. Use when user wants zoom-in/out feel without image edits.
+
+   ### Decision rule
+
+   - User says "plain UGC" / "talking head" / "service explainer" / casual creator selfie → **(a) single ref**.
+   - User says "podcast" / "cinematic" / "editorial" / "different angles" / "ikinci açı" → **(b) angle-cut**.
+   - Reference image visually carries scene-narrative weight (editorial pose, prop interaction, dramatic lighting) → **(b) angle-cut** likely better even if user didn't say so explicitly; surface the choice in the plan summary so they can switch.
+   - State change required (mouth empty when source has crystal, etc.) → must use per-segment image edits regardless of style.
+
+   **Don't write camera-motion verbs in any prompt** ("slowly zooms in", "pulls back", "static hold"). Seedance produces natural micro-motion (breathing, head turns, gestures) on its own. See `first-frame-not-camera-motion.md`.
+
+3. **Decide per-segment reference images** based on what each segment NEEDS visually vs. what the source reference shows. See `narrative-arc.md` for the full decision tree. Quick version per segment:
+   - **Pure talking-head, no state change** → reuse source reference, 0 edits.
+   - **Style (a) angle-cut** → generate angle-shifted reference via nano-banana-2 (~24cr at 2K each).
+   - **Significant state change vs. source** (e.g. mouth empty when source shows mouth full, glasses off when source shows them on) → **MUST generate a state-matched reference via nano-banana-2** for that segment. The reference image overrides action-description "mouth is now empty" wording — verified empirically. Without a matched reference, expect visible state breaks at cuts.
+   - **Borderline / ambiguous** → ASK the user before burning credit. Surface as a one-line question in the plan summary.
+
+   For nano-banana-2 edit prompts:
+   - Pin identity: "Same person, same outfit, same setting, same lighting, same props."
+   - State only the change: "Now without the crystal in mouth — mouth is closed and relaxed" / "3/4 side profile from the right" / "looking surprised, eyes wider".
+   - Verify identity preservation before submitting the segment — re-generate the edit if the face drifted.
+
+   **Resolution rule:**
+   - **Default `--resolution 2K`** for talking-head / selfie / lifestyle (model is focal point). 1K leaves Seedance no headroom for clean 1080p output.
+   - **Use `--resolution 4K`** when the video integrates a **product** (model holding/wearing/showcasing a specific product where label/texture/detail matters).
+   - Cost ladder: 1K ≈ 12cr, 2K ≈ 24cr, 4K ≈ 48cr per edit.
+
+4. **Generate Segment 1 first (sequential).** Standard Seedance R2V with native audio:
+   ```bash
+   quickdesign video generate \
+     --provider seedance \
+     --reference-image <seg1-ref.png> \
+     --aspect-ratio 9:16 --duration <Ns> --resolution 1080p \
+     --wait -o <seg1.mp4> \
+     -p '<prompt using @Image1 reference syntax>'
+   ```
+
+   **Prompt syntax — use `@Image1` references, not verbatim identity descriptions.** See `seedance-reference-syntax.md` for the full rule. Standard skeleton:
+   ```
+   @Image1 in the same exact setting throughout.
+   <one-sentence action/state for this segment>.
+   He/She/The person says: "<verbatim quoted speech>".
+   No background music or score — only the spoken voice and natural ambient sound.
+   No subtitles, no captions, no on-screen text overlays of any kind.
+   Vertical 9:16 format.
+   ```
+
+   `--generate-audio` is on by default. The "in the same exact setting throughout" pin handles location continuity. The no-music + no-subtitle lines are mandatory unless user opts in (see `no-music-no-subtitles.md`).
+
+5. **Extract Segment 1's audio** for voice continuity:
+   ```bash
+   quickdesign video extract-audio <seg1.mp4> -o <seg1-audio.mp3>
+   # OR raw ffmpeg fallback:
+   # ffmpeg -y -i <seg1.mp4> -vn -acodec libmp3lame -q:a 2 <seg1-audio.mp3>
+   ```
+   Mandatory whenever there's more than one segment. Single-segment videos skip this step.
+
+6. **Generate Segments 2..N in PARALLEL**, each with `--reference-audio` set to seg1-audio.mp3:
+   ```bash
+   quickdesign video generate \
+     --provider seedance \
+     --reference-image <segN-ref.png>          # angle-cut: edited image; single-ref: same original \
+     --reference-audio <seg1-audio.mp3>        # MANDATORY — voice continuity anchor \
+     --aspect-ratio 9:16 --duration <Ns> --resolution 1080p \
+     --wait -o <segN.mp4> \
+     -p '<@Image1 + action + dialogue + no-music + no-subs + 9:16>'
+   ```
+   Each parallel call is one Seedance API hit — no TTS, no voice-clone, no lipsync overlay. Voice match happens natively inside Seedance.
+
+7. **Concatenate.** Every segment is identical resolution / fps / codec / audio params (1080×1920, 24fps, H.264, AAC), so concat is mux-only — zero quality loss:
+   ```bash
+   quickdesign video concat <seg1.mp4> <seg2.mp4> <segN.mp4> -o <final.mp4>
+   # OR raw ffmpeg fallback:
+   # printf "file '<seg1.mp4>'\nfile '<seg2.mp4>'\n…\n" > /tmp/concat.txt
+   # ffmpeg -y -f concat -safe 0 -i /tmp/concat.txt -c copy <final.mp4>
+   ```
+
+   If a segment was forced to a different resolution (e.g. credit-shortage 720p fallback), use the `concat` filter with re-encode instead.
+
+## Why this beats legacy TTS+lipsync chains
+
+- **Native audio per segment** — Seedance generates dialogue audio matching the quoted speech in the prompt, lip-synced inside the segment. No separate TTS + lipsync.
+- **Voice continuity via `audio_urls` reference** — Seg 1's extracted audio is passed as `--reference-audio` to Segs 2..N, so Seedance natively matches the voice character across all segments. ZCR within ~0.001 of seg 1 baseline in validation.
+- **Cost** — angle-cut style: 3× R2V + 2× image edit ≈ ~1500cr for a ~36s 3-act promo. Single-ref style: 3× R2V ≈ ~1450cr (no image edits).
+- **Speed** — parallel-friendly: Seg 1 sequential (audio dependency), then Segs 2..N independent and run in parallel. Total wall time ≈ Seg 1 time + longest parallel segment + concat (~6-8 min for 36s output).
+- **Visual coherence** — angle/framing changes are intentional cinematography. Cuts feel like director's choice. Voice character stays one person throughout.
+
+## What NOT to do
+
+- Don't propose any TTS + voice-clone + lipsync chain — retired in this skill. Use `audio_urls` instead.
+- **Don't skip the `--reference-audio` step on multi-segment videos.** It's not optional — Seedance picks a different voice per call without it; cuts sound like 2-3 different people.
+- Don't try to fit >30 words into a single Seedance segment — pacing collapses to chipmunk speed.
+- Don't change wardrobe / setting / lighting between segments — only the angle / framing / facial expression. Anything else breaks visual continuity.
+- Don't write camera-motion verbs in segment prompts. Describe the **first-frame composition** instead, or omit framing entirely on segments that should match the reference image's natural framing.
+- Don't skip the identity check on angle-shifted reference images — nano-banana-2 occasionally drifts the face on hard angle changes; regenerate the edit before sending it to Seedance.
+- **Don't use a "still life" reference for the closer segment.** If the reference shows the subject already in their final pose (lying down, fully relaxed, hands at sides), Seedance has nowhere to go — produces 11s of frozen output. Action-loaded references (subject mid-gesture) + motion-verb action lines give the closer life.
+- **Don't use "last-frame-as-first-frame continuation" between segments.** PNG extraction is a re-encode → degraded color/sharpness; Seedance i2v then renders new video on top → compounded loss. Use angle-shifted nano-banana-2 reference instead.

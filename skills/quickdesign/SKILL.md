@@ -1,0 +1,197 @@
+---
+name: quickdesign
+description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance, Kling, Sora2, Nano Banana, and GPT Image. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, or video upscale via QuickDesign.
+---
+
+# QuickDesign CLI skill
+
+This skill teaches Claude how to plan and execute AI media generation through the `quickdesign` CLI. The CLI wraps QuickDesign's hosted models (Seedance 2.0 R2V/I2V, Kling 3 Std/Pro, Sora 2, Nano Banana 2, GPT Image, video upscale) so a Claude session can produce videos and images directly from Bash without managing API keys, polling, or storage upload.
+
+## When to invoke
+
+Reach for this skill when the user asks for any of:
+
+- **Talking-avatar / UGC video** — "make a 30-second ad where this person says X", "convert this script to a video", "create a creator-selfie clip"
+- **Multi-segment promo / explainer** — anything where total speech is >15s (Seedance segment cap) or where the user wants angle cuts / framing progression
+- **Image edit / generation** — angle change, state change (object in/out of frame, pose change), product on white background, lifestyle composite, brand-kit-styled creatives
+- **Video upscale** — bring a 720p clip to 1080p / 4K
+- **Bulk / batch creative production** — "do this for each of these 5 product photos"
+
+Do NOT use for: pure text generation, code edits, search — those have their own tools.
+
+## Cardinal rules (read first, every time)
+
+These four rules apply to every Seedance R2V generation. Breaking any of them produces visible defects in the output.
+
+1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts.** Don't re-describe the person, wardrobe, or setting in words — that competes with the reference image and causes drift across segments. See `references/seedance-reference-syntax.md`.
+
+2. **Multi-segment voice continuity = `--reference-audio` from Seg 1's extracted audio.** Generate Seg 1 first → `ffmpeg -vn -acodec libmp3lame` extracts audio → pass that mp3 as `--reference-audio` to Segs 2..N. Without this, every segment picks a different voice. See `references/voice-continuity.md`.
+
+3. **Suppress music tracks AND on-screen subtitles — keep real-world ambient sounds.** Seedance defaults are bad on both axes for UGC ads:
+   - **Music tracks**: auto-layers a music bed (pop song, cinematic score, café playlist, DJ set, workout music) under voiceover. Kills authentic creator vibe. **But**: real-world ambient sound (street noise, café chatter, dish clatter, room tone, footsteps, wind, distant conversation, espresso machine, etc.) is WANTED — that's what makes the video feel real. Only the MUSIC component gets excluded.
+   - **Subtitles**: burns captions into the pixels when the prompt contains quoted speech. The captions HALLUCINATE — they don't reliably match the spoken audio (partial sentences, paraphrased words, wrong timing). For an ad this is worse than no caption — the message viewers READ doesn't match what they HEAR.
+   
+   Default split rules for every prompt with quoted speech:
+   > `No background music or score — only the spoken voice and natural ambient sound (street noise / room tone / chatter / footsteps as appropriate to the scene).`
+   > `No subtitles, no captions, no on-screen text overlays of any kind.`
+   
+   For settings that have music in real life (cafe, bar, gym, club): keep the ambient phrasing AND explicitly name the music exclusion. Example: `"natural cafe atmosphere — distant conversations and dish clinks — but no background music, playlist, or DJ track."` See `references/no-music-no-subtitles.md`.
+
+4. **For burned-in captions, always use `quickdesign video subtitle` AFTER generation.** Never let Seedance burn its own captions via the prompt — they hallucinate (partial sentences, paraphrased words, wrong timing). The dedicated subtitle endpoint runs real ASR (ElevenLabs) on the generated audio and renders accurate karaoke-style captions with customizable styling. See `references/auto-subtitle.md`.
+
+5. **Confirmation gates — always pause for user approval before spending credits.** Two pause points:
+   - Plan summary BEFORE any generation (Type / Model / Duration / Cost) → wait for "go".
+   - Banana edit reference image BEFORE feeding it into Seedance R2V → show the edit, wait for visual approval. Banana costs ~12cr; Seedance costs ~400-500cr. A wrong reference auto-chained to Seedance burns 50× the cost. See `references/confirmation-rules.md`.
+
+## Quick start — common commands
+
+```bash
+# Auth (one-time, browser flow)
+quickdesign auth login
+
+# Image edit — angle change / state change
+quickdesign image generate \
+  --model nano-banana-2 \
+  --image ~/path/to/source.png \
+  --aspect-ratio 9:16 --resolution 2K \
+  -p "Same person and setting from the reference. CHANGE: ..." \
+  -o ~/output.png --wait
+
+# Single Seedance R2V (≤15s spoken script)
+quickdesign video generate \
+  --provider seedance \
+  --reference-image ~/path/to/source.png \
+  --aspect-ratio 9:16 --duration 12 --resolution 1080p \
+  -o ~/output.mp4 --wait \
+  -p '@Image1 in the same setting. <action>. He/She says: "..." No background music or score — only the spoken voice and natural ambient sound. No subtitles or on-screen text overlays. Vertical 9:16 format.'
+
+# Auto-subtitle (karaoke style, post-generation)
+quickdesign video subtitle ./final.mp4 \
+  --style tiktok --language en \
+  -o ./final-subbed.mp4 --wait
+
+# Multi-segment Seedance R2V with voice continuity
+# Step 1: Generate Seg 1 (sequential, native audio)
+quickdesign video generate --provider seedance --reference-image seg1.png \
+  --duration 12 --aspect-ratio 9:16 --resolution 1080p \
+  -p '...' -o seg1.mp4 --wait
+
+# Step 2: Extract Seg 1 audio
+ffmpeg -y -i seg1.mp4 -vn -acodec libmp3lame -q:a 2 seg1-audio.mp3
+
+# Step 3: Segs 2..N in parallel, each with --reference-audio
+quickdesign video generate --provider seedance \
+  --reference-image seg2.png \
+  --reference-audio seg1-audio.mp3 \
+  --duration 12 --aspect-ratio 9:16 --resolution 1080p \
+  -p '...' -o seg2.mp4 --wait &
+# (repeat for segN, then `wait`)
+
+# Step 4: Concatenate (mux-only, no quality loss)
+printf "file 'seg1.mp4'\nfile 'seg2.mp4'\nfile 'seg3.mp4'\n" > /tmp/concat.txt
+ffmpeg -y -f concat -safe 0 -i /tmp/concat.txt -c copy final.mp4
+```
+
+## Reference index — read on demand
+
+These files cover the deep knowledge for each topic. Read the relevant one(s) when planning a generation.
+
+- `references/ugc-video-pipeline.md` — **The canonical multi-segment Seedance R2V pipeline.** Style picker (single-ref / angle-cut / framing-progression), per-segment reference decisions, voice continuity, concat. Read for any UGC / promo / talking-avatar request.
+
+- `references/seedance-reference-syntax.md` — `@Image1` / `@Audio1` / `@Video1` reference label syntax. Wrong vs right prompt examples, what stays in prompt vs what becomes a reference.
+
+- `references/voice-continuity.md` — `audio_urls` reference parameter for multi-segment voice character lock. Why TTS+lipsync chains are not the answer.
+
+- `references/no-music-no-subtitles.md` — Default no-music + no-subtitles rules. Setting-aware ambient phrasing for cafe/bar/gym (these settings auto-add music). Subtitle hallucination explained — why merged into one anti-overlay line.
+
+- `references/narrative-arc.md` — Plan a 3-beat arc (open → reveal → close) before drafting prompts. Decision tree for when to generate per-segment reference image edits vs reuse the source.
+
+- `references/brand-and-moderation.md` — Don't name third-party brands in prompts (triggers copyright moderation). Soften aggressive verbs ("crunches" → "fragments slowly"). Reroute object-in-mouth edits from nano-banana-2 to gpt-image-2-i2i.
+
+- `references/first-frame-not-camera-motion.md` — Each segment's prompt describes its starting framing (wide / medium / close), not camera motion (zoom-in, pull-back). Seedance handles micro-motion natively.
+
+- `references/script-and-duration.md` — Wrap user script verbatim as quoted speech. Duration math: ~2 words/second. Use gender-neutral `The person says: "..."` unless reference image makes it explicit.
+
+- `references/confirmation-rules.md` — Plan-summary gate + banana-edit-approval gate. The two pause points before spending credits.
+
+- `references/auto-subtitle.md` — Burned-in karaoke captions via `quickdesign video subtitle`. Style presets (tiktok / minimal / karaoke / reels-pop). Use AFTER generation — never let Seedance burn its own hallucinated captions.
+
+## How a typical multi-segment UGC request flows
+
+1. **Read the script** the user provided (or generate a short one if the user gave only a brief).
+2. **Count words** → divide by 2 → segment count = `ceil(seconds / 15)`.
+3. **Pick transition style** — single-ref for plain talking-head (default), angle-cut for podcast/cinematic/explicit "ikinci açı", framing-progression as opt-in.
+4. **Per segment, decide reference**: source image / banana edit / borderline-ask-user. (See `narrative-arc.md` decision tree.)
+5. **Emit plan summary** — Type, Model, Duration per segment, Cost estimate. **WAIT for user "go".**
+6. **Generate Seg 1**, extract audio.
+7. **For each subsequent segment that needs a banana edit**: generate the edit, **show the user, wait for approval**, then run Seedance R2V for that segment.
+8. **Run Seedance Segs 2..N in parallel** with `--reference-audio` set to Seg 1's audio.
+9. **Concat** with `ffmpeg -c copy`.
+10. **Frame-extract** (`ffmpeg -ss <t> -frames:v 1`) at segment boundaries, hand back to user with QA notes per segment.
+
+## Duration & cost — Seedance 2.0 supports every integer second 4-15
+
+Valid Seedance 2.0 (R2V / I2V / T2V) durations: `4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15` (plus `"auto"`). No rounding to 5/10/15 — pick the tightest value that fits the segment's script.
+
+**Cost scales linearly ~40cr/s at 1080p R2V** (validated empirically):
+
+| Duration | Cost | Use for |
+|---|---|---|
+| 4-6s | 160-240cr | Pure visual beats, no speech, or 8-12 word lines |
+| 8s | 320cr | ~16-word hook line |
+| 11s | 440cr | ~22-word segment |
+| 12s | 480cr | ~24-word segment |
+| 13s | 520cr | ~26-word segment |
+| 15s | 600cr | Cap, ~30-word max segment |
+
+Other operations:
+| Operation | Cost (cr) |
+|---|---|
+| Nano-banana-2 image edit @ 1K | ~12 |
+| Nano-banana-2 image edit @ 2K | ~24 |
+| Nano-banana-2 image edit @ 4K | ~48 |
+
+Tight duration picking matters: 11s instead of 15s saves 160cr per segment. A 3-segment ad with tight durations (avg ~12s) vs rounded-to-15s saves ~360cr per video.
+
+A typical 36-44s 3-segment UGC ad with banana edits lands at ~1,500-2,000 credits — varies based on tight vs padded durations and number of per-segment edits.
+
+**Duration picking algorithm (per segment):**
+1. Count words in this segment's script.
+2. `raw = words / 2` (≈2 wps natural pace)
+3. `tight = ceil(raw)`
+4. If `tight < 4` → bump to 4 (Seedance lower bound).
+5. If `tight > 15` → this segment doesn't fit; split into two segments at sentence boundary.
+6. Use `tight` as the duration. Don't pad unless: (a) action includes a meaningful gesture AFTER the speech (~+1s), or (b) closer needs visual breath for CTA.
+
+**Plan summary template** (always show the math):
+> "Script: 47 words → ~24s total speech → 2 segments. Seg 1: 24 words / 12s (480cr). Seg 2: 23 words / 12s (480cr). Total Seedance: 960cr. OK?"
+
+## Common mistakes the agent must avoid
+
+- ❌ Re-describing the person/setting verbatim in the prompt → identity drift across segments. Use `@Image1`.
+- ❌ Skipping `--reference-audio` on multi-segment → 3 different voices across cuts.
+- ❌ Forgetting the "no subtitles" line when the prompt has quoted speech → Seedance burns hallucinated captions onto every frame; can't be removed in post.
+- ❌ Naming brands in prompts ("Tom Ford", "Nike") → copyright moderation reject.
+- ❌ Aggressive verbs ("crunches", "smashes", "rips") → moderation reject (catch-all "copyright" message).
+- ❌ Camera motion verbs ("slowly zooms in", "static hold") → ignored or randomized; competes with scene description.
+- ❌ Auto-chaining banana edit → Seedance without showing the user the edit first → wrong reference burns 500cr.
+- ❌ Object-in-mouth edits via nano-banana-2 → reject. Use gpt-image-2-i2i.
+- ❌ Treating `audio_urls` as voice clone API — it's a Seedance-native reference, not a separate clone step.
+
+## Output artifacts
+
+For multi-segment UGC pipelines, save artifacts in a per-job directory so the user can replay / re-render any segment:
+
+```
+~/Downloads/<job-name>/
+  seg1.mp4
+  seg1-audio.mp3
+  seg2.mp4
+  seg3.mp4
+  final.mp4
+  references/
+    seg2-edit.png
+    seg3-edit.png
+```
+
+Surface the file paths in the final reply so the user can find them without searching.
