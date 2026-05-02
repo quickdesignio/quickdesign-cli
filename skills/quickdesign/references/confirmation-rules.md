@@ -78,3 +78,86 @@ When the segment uses the original source reference (no edit), Gate 2 doesn't ap
 | Seedance R2V | 400-600cr | Already burnt, must re-run = 2x the cost of original |
 
 Both gates are cheap insurance against expensive mistakes.
+
+## Use `AskUserQuestion` for structured choice gates
+
+When the gate is a *choice between alternatives* (model, style, aspect ratio, "regenerate vs proceed"), do not pose it as a free-form prose question — call the `AskUserQuestion` tool. The user gets a clickable picker with each option's tradeoff visible at a glance, and the answer comes back in a structured envelope you can route from. Free-form text replies are reserved for open-ended approval ("does this banana edit look right?" → user types yes / no / change X).
+
+**Required convention from the tool itself:** if you have a recommendation, put it **first** and append `(Recommended)` to the option label. The tool docs are explicit about this — agents who skip the suffix lose the affordance that nudges users away from low-quality choices.
+
+Each question:
+- 1 short header (≤12 chars, e.g. `Model`, `Style`, `Approve`)
+- 1 clear question sentence
+- 2-4 options, each with a `description` that names the tradeoff (cost / quality / time / capability)
+- `multiSelect: false` for picker gates; `true` only when "select all that apply" actually makes sense (e.g. enabling features)
+
+The UI auto-adds an "Other" option for free-text input — never include it yourself.
+
+### Gate-by-gate canonical patterns
+
+**Model picker** (when more than one model in the registry is viable for the request — see `ugc-video-pipeline.md#model-picker`):
+
+```
+question: "Which video model should I use for the 3 talking-head segments?"
+header:   "Model"
+options:
+  1. label: "Seedance 2.0 R2V (Recommended)"
+     description: "Reference labels + audio_urls voice lock + 4-15s grid. ~480cr/12s. Default for multi-segment UGC."
+  2. label: "Sora 2 i2v"
+     description: "Cleaner native audio, but no audio_urls so voice will drift between segments. 4/8/12s only. ~700cr/12s."
+  3. label: "Kling 2.1 Standard"
+     description: "Cheapest path. 5 or 10s only — your script needs splitting. No reference grammar."
+```
+
+**Transition style** (when the user hasn't named one):
+
+```
+question: "How should the segments cut together?"
+header:   "Style"
+options:
+  1. label: "Single reference (Recommended)"
+     description: "Same source image for every segment. Cheapest, default for plain UGC. Seedance produces natural variation."
+  2. label: "Angle-cut"
+     description: "Banana edit per segment for new angles (cinematic / podcast / 'second angle'). +12-48cr per edit."
+  3. label: "Framing progression"
+     description: "Wide → medium → close. Banana edit only for the macro middle segment. Use for product reveals."
+```
+
+**Banana edit approval** (Gate 2 — after generating the edit and showing the image):
+
+```
+question: "Use this banana edit as the Seg 2 reference?"
+header:   "Approve"
+options:
+  1. label: "Looks good — proceed (Recommended)"
+     description: "Run Seedance R2V with this edit. ~480cr."
+  2. label: "Regenerate with tweaks"
+     description: "Tell me what to change in the prompt and I'll re-edit. ~12cr per retry."
+  3. label: "Cancel this segment"
+     description: "Skip the edit and reuse the original source reference instead. 0 extra cost."
+```
+
+**Resolution / cost confirm** (when the briefer didn't specify and the multiplier is ≥2x):
+
+```
+question: "Render at which resolution?"
+header:   "Resolution"
+options:
+  1. label: "1080p (Recommended)"
+     description: "Standard for UGC reels. ~480cr/12s segment."
+  2. label: "720p"
+     description: "Cheaper, ~360cr. Quality loss visible on large screens but fine for social-only."
+  3. label: "Auto"
+     description: "Let Seedance pick based on the reference image's aspect. Usually 1080p."
+```
+
+### When NOT to use `AskUserQuestion`
+
+- Open-ended approval where the user might want to type custom feedback ("does this banana look right?") — the free-form `Other` field is fine but the actual *content* is more nuanced than 4 buttons. Use a normal prose pause instead.
+- Yes/no with no meaningful tradeoff — just ask.
+- Mid-flight progress updates ("Seg 2 done, moving to Seg 3") — these are status, not decisions.
+- Plan summary itself — Gate 1 is intentionally a long structured prose dump because the user needs to see *all* parameters at once, not just a 4-option subset.
+
+### Mental model
+
+`AskUserQuestion` is for *forks in the road*. Plain prose pauses are for *open-ended review*. Both are confirmation gates; they're just different shapes.

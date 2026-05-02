@@ -36,6 +36,8 @@ If `seedance-2.0-r2v` is no longer in the list, the registry has moved on — pi
 
 The rest of this doc (segment planning, voice continuity, concat) is model-agnostic. The Seedance-specific bits live in `seedance-reference-syntax.md` so swapping models in the future is a localized edit.
 
+**When more than one model is viable** for the request (e.g. user gave a ≤12s single-shot prompt that both Seedance i2v and Sora 2 i2v can handle, or said "use the cheapest option"), don't pick silently — use the `AskUserQuestion` tool to surface the tradeoff with `seedance-2.0-r2v` (or whichever is canonical for the request type) marked `(Recommended)` first. See `confirmation-rules.md#use-askuserquestion-for-structured-choice-gates` for the exact pattern.
+
 ## Method
 
 1. **Plan the segments.** Count script words. Each Seedance 2.0 segment is integer 4-15s and fits ~30 words at 2 wps natural pace. Divide the script at sentence/beat boundaries so each segment lands tight (no padding). The final segment may be shorter (e.g. 8s for a punchy CTA).

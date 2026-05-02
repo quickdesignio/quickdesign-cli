@@ -43,6 +43,8 @@ These four rules apply to every Seedance R2V generation. Breaking any of them pr
    - Plan summary BEFORE any generation (Type / Model / Duration / Cost) → wait for "go".
    - Banana edit reference image BEFORE feeding it into Seedance R2V → show the edit, wait for visual approval. Banana costs ~12cr; Seedance costs ~400-500cr. A wrong reference auto-chained to Seedance burns 50× the cost. See `references/confirmation-rules.md`.
 
+6. **For *choice* gates use the `AskUserQuestion` tool, not free-form prose.** Whenever the gate is "pick one of N alternatives" — model picker, transition style (single-ref / angle-cut / framing-progression), resolution, banana edit approve / regenerate / cancel — call `AskUserQuestion` with a structured option list. Put your recommendation FIRST and append `(Recommended)` to the label per the tool's own convention. The user gets a clickable picker showing each option's tradeoff (cost / quality / capability) at a glance. Reserve plain prose pauses for open-ended review ("does this banana look right?") and the plan summary itself. See `references/confirmation-rules.md#use-askuserquestion-for-structured-choice-gates`.
+
 ## Quick start — common commands
 
 ```bash
