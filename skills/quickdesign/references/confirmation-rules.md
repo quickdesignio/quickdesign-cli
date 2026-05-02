@@ -60,7 +60,31 @@ Real example from production: a mom-selfie hook segment was banana-edited as thi
 
 ## How to apply
 
+- **Hallucination self-check BEFORE asking the user.** Banana / image-edit models routinely produce anatomical glitches: severed wrists, floating hands, six-fingered grips, double earrings on one ear, mismatched eyes, distorted mouths, props phasing through hands. The agent must mentally inspect the rendered image with the Read tool and verify the obvious anomalies before surfacing it for approval. If anything is clearly broken, **regenerate immediately without asking** (~12cr) — only show the user when the agent is reasonably confident the image is clean. Don't waste the user's attention on obviously-broken outputs.
+
+  **Quick checklist (~5s scan):**
+  - Hands: 5 fingers each, all visible if not occluded, wrists clearly connected to forearms, fingers curled naturally around any held object, no doubled or floating hands
+  - Eyes: matching pair, both pupils intact, no extra eyes, eyebrows symmetric
+  - Ears: 2 only, symmetric, jewelry matches if any
+  - Mouth: natural shape, lips not distorted, teeth not broken
+  - Held / contact objects: natural grip, contact points logical (palm under sole, finger over edge — not phasing through)
+  - General: no extra arms, doubled features, floating limbs, surreal artifacts (unless explicitly requested)
+
+  Banana retries are cheap (~12cr) — the user's attention is not. Use 1-2 silent regens to fix obvious anatomy before paging the user. If the third generation still has issues, surface BOTH problem versions so the user can decide which path to tweak rather than guessing.
+
+  **Tweak strategies that fix common issues without major prompt rewrites:**
+  - Severed wrist on a held object → switch to a TWO-HAND pose ("both hands cradling the X"). Banana handles two-hand grips far more reliably than partially-occluded single hands.
+  - Floating prop → add explicit contact verbs ("palm wrapped around the heel, fingers gripping the toe").
+  - Six fingers / extra hand → add a guard clause: "exactly five fingers per hand, no extra digits, anatomically correct hands and wrists."
+
 - After every banana edit destined for Seedance: pause and surface the image. Write one short caption with what you see in it ("mom standing center, phone in selfie pose, mural behind") so the user can verify it matches their intent without having to re-derive your interpretation.
+
+- **Always include the file path AND/OR the public URL of the rendered image in the approval message.** The user opens it natively (Finder / Preview / browser) — they don't see the inline render the agent saw via the Read tool. Prefer R2 / `library.quickdesign.io` / `ext.quickdesign.io` URLs over provider temp URLs (`tempfile.aiquickdraw.com`, `fal.media`) — they're stable, never expire, and route via the QuickDesign CDN. The CLI's `storage_urls[0]` carries the R2 URL when storage upload has completed; fall back to the provider URL only when it hasn't yet. Both forms when available:
+  ```
+  Path : /Users/enes/Downloads/funtle-seg1-edit.png
+  URL  : https://tempfile.aiquickdraw.com/vnp/220afa84...jpeg
+  ```
+  Drop the URL line if not yet uploaded; drop the path line if the image only exists remotely. **Never** ask for approval with only a verbal description — the user must be able to physically view the file before saying yes/no/regenerate. This is a hard requirement; the banana-edit gate exists *because* visual mismatches cost 50× downstream.
 - If the user said "yapalım" / "go" / "proceed" referring to the **plan**, that does NOT cover the reference image — those words approve the next concrete *action* (generate the edit), not the rendered output.
 - For multi-segment pipelines: pause at each segment's banana edit. Don't fire all banana edits in parallel and then show 3 references at once — generate one, show, approve, render Seedance for that segment, then move to next segment's banana.
 - If the banana edit looks good and the user is paying attention (active session), one short turn for approval is fine. If the session is autonomous / wakeup-driven, leave the Seedance launch for next turn after explicit user signal.

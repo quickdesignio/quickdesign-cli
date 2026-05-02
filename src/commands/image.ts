@@ -32,6 +32,11 @@ interface StatusResponse {
 interface ResultResponse {
   images?: Array<{ url?: string; imageUrl?: string }>;
   imageUrl?: string;
+  // BFF returns BOTH the raw provider URL (kie.ai/aiquickdraw or fal.media,
+  // expires in hours/days) and the R2-stored URL on `storage_urls`. Prefer
+  // the R2 URL — stable on `library.quickdesign.io`, never expires, and
+  // routes via the QuickDesign CDN.
+  storage_urls?: string[];
   generation_time?: number;
   design_id?: string;
 }
@@ -46,7 +51,8 @@ export function registerImageCommands(program: Command): void {
     .option('-m, --model <slug>', 'Model slug (e.g. nano-banana-2, gpt-image-1)', 'nano-banana-2')
     .option('--size <size>', 'Size (e.g. 1024x1024)', '1024x1024')
     .option('--num <n>', 'Number of images', (v) => parseInt(v, 10), 1)
-    .option('--image <url|path>', 'Optional source image URL or local path (for image-to-image models; auto-uploaded)')
+    .option('--image <url|path>', 'Source image URL or local path (image-to-image; auto-uploaded). Alias for --reference-image when given alone.')
+    .option('--reference-image <url|path>', 'Reference image URL or local path (repeatable; nano-banana-2 supports up to ~5 references). First reference = subject identity, additional refs = props / setting / style anchors.', collect, [])
     .option('--aspect-ratio <ratio>', 'Aspect ratio (1:1 | 9:16 | 16:9 | 4:5)')
     .option('--resolution <res>', 'Resolution (0.5K | 1K | 2K | 4K) — image-edit models only')
     .option('--wait', 'Block until the job completes and return result URL(s)', false)
@@ -58,6 +64,7 @@ export function registerImageCommands(program: Command): void {
       size?: string;
       num?: number;
       image?: string;
+      referenceImage?: string[];
       aspectRatio?: string;
       resolution?: string;
       wait?: boolean;
@@ -77,11 +84,19 @@ export function registerImageCommands(program: Command): void {
           fail('Could not determine userId. Run `quickdesign auth login` again.', 2);
         }
 
-        // Auto-upload local image paths.
-        let imageUrl: string | undefined;
-        if (opts.image) {
-          imageUrl = looksLikeLocalPath(opts.image) ? await ensureRemoteUrl(opts.image) : opts.image;
-        }
+        // Resolve all reference images (--image kept for backwards compat;
+        // --reference-image is the canonical multi-ref path). Auto-upload
+        // local paths. Order matters: first ref = subject identity, later
+        // refs = props / setting / style anchors. Many image-edit models
+        // (nano-banana-2 / Gemini 2.5 Flash Image, gpt-image-2-i2i) take an
+        // array of image URLs and reason over them in the prompt order.
+        const refSources: string[] = [
+          ...(opts.image ? [opts.image] : []),
+          ...(opts.referenceImage ?? []),
+        ];
+        const imageUrls = await Promise.all(
+          refSources.map((src) => (looksLikeLocalPath(src) ? ensureRemoteUrl(src) : Promise.resolve(src))),
+        );
 
         const shouldWait = opts.wait === true || Boolean(opts.output);
         const start = await request<StartResponse>('/api/image-generation/generate-async', {
@@ -89,15 +104,14 @@ export function registerImageCommands(program: Command): void {
           body: {
             prompt: opts.prompt,
             model: opts.model,
-            // BFF accepts either `imageUrls` (array) for composites or single
-            // `image_url` for legacy edits — go with the array form to match
-            // what `image-edit` workflow expects.
-            imageUrls: imageUrl ? [imageUrl] : [],
+            // BFF accepts an `imageUrls` array — multi-image-edit models
+            // (nano-banana-2 etc.) consume them as references in order.
+            imageUrls,
             n: opts.num,
             userId,
             resolution: opts.resolution,
             aspect_ratio: opts.aspectRatio,
-            source: imageUrl ? 'image_edit' : 'text_to_image',
+            source: imageUrls.length > 0 ? 'image_edit' : 'text_to_image',
           },
         });
         const requestId = start.request_id ?? start.requestId;
@@ -118,7 +132,13 @@ export function registerImageCommands(program: Command): void {
         }, { intervalMs: 2000, timeoutMs: opts.timeout });
         spin.succeed('Image ready');
 
-        const url = result.imageUrl ?? result.images?.[0]?.url ?? result.images?.[0]?.imageUrl;
+        // Prefer the stable R2 URL when available; fall back to the
+        // provider's temp CDN if storage upload hasn't completed yet.
+        const url =
+          result.storage_urls?.[0] ??
+          result.imageUrl ??
+          result.images?.[0]?.url ??
+          result.images?.[0]?.imageUrl;
         if (!url) fail(`Result had no image URL: ${JSON.stringify(result)}`);
 
         if (opts.output) {
@@ -181,7 +201,13 @@ export function registerImageCommands(program: Command): void {
         }, { intervalMs: opts.interval, timeoutMs: opts.timeout });
         spin.succeed('Image ready');
 
-        const url = result.imageUrl ?? result.images?.[0]?.url ?? result.images?.[0]?.imageUrl;
+        // Prefer the stable R2 URL when available; fall back to the
+        // provider's temp CDN if storage upload hasn't completed yet.
+        const url =
+          result.storage_urls?.[0] ??
+          result.imageUrl ??
+          result.images?.[0]?.url ??
+          result.images?.[0]?.imageUrl;
         if (!url) fail(`Result had no image URL: ${JSON.stringify(result)}`);
 
         if (opts.output) {
@@ -226,4 +252,8 @@ export function registerImageCommands(program: Command): void {
         emitJson({ success: true, data });
       } catch (err) { fail(err); }
     });
+}
+
+function collect(value: string, previous: string[]): string[] {
+  return [...previous, value];
 }

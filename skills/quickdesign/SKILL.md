@@ -23,7 +23,7 @@ Do NOT use for: pure text generation, code edits, search — those have their ow
 
 These four rules apply to every Seedance R2V generation. Breaking any of them produces visible defects in the output.
 
-1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts.** Don't re-describe the person, wardrobe, or setting in words — that competes with the reference image and causes drift across segments. See `references/seedance-reference-syntax.md`.
+1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts, and pass EVERY relevant photo as a separate reference.** Both `nano-banana-2` (image edit) and Seedance 2.0 R2V (video) accept multiple `--reference-image` flags. If the user uploaded a product from two angles, pass both — describing the second one in prose instead is a regression that produces invented details. Don't re-describe the person, wardrobe, or product in words; that competes with the reference image and causes drift. See `references/seedance-reference-syntax.md` and `references/multi-reference-pattern.md`.
 
 2. **Multi-segment voice continuity = `--reference-audio` from Seg 1's extracted audio.** Generate Seg 1 first → `ffmpeg -vn -acodec libmp3lame` extracts audio → pass that mp3 as `--reference-audio` to Segs 2..N. Without this, every segment picks a different voice. See `references/voice-continuity.md`.
 
@@ -122,6 +122,8 @@ These files cover the deep knowledge for each topic. Read the relevant one(s) wh
 - `references/ugc-video-pipeline.md` — **The canonical multi-segment Seedance R2V pipeline.** Style picker (single-ref / angle-cut / framing-progression), per-segment reference decisions, voice continuity, concat. Read for any UGC / promo / talking-avatar request.
 
 - `references/seedance-reference-syntax.md` — `@Image1` / `@Audio1` / `@Video1` reference label syntax. Wrong vs right prompt examples, what stays in prompt vs what becomes a reference.
+
+- `references/multi-reference-pattern.md` — When and how to pass MULTIPLE reference images (avatar + product side + product top). CLI invocation for both `image generate` and `video generate`, common mistakes, pre-generation checklist. Read whenever the user uploads more than one photo of the same subject.
 
 - `references/voice-continuity.md` — `audio_urls` reference parameter for multi-segment voice character lock. Why TTS+lipsync chains are not the answer.
 
