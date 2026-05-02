@@ -14,6 +14,7 @@ import { registerBrandCommands } from './commands/brand.js';
 import { registerAdCreatorCommands } from './commands/ad-creator.js';
 import { registerDesignCommands } from './commands/design.js';
 import { registerInitCommand } from './commands/init.js';
+import { registerCostCommand } from './commands/cost.js';
 import pkg from '../package.json' with { type: 'json' };
 
 const program = new Command();
@@ -55,6 +56,7 @@ registerBrandCommands(program);
 registerAdCreatorCommands(program);
 registerDesignCommands(program);
 registerInitCommand(program);
+registerCostCommand(program);
 
 program.parseAsync(process.argv).catch((err: Error) => {
   process.stderr.write(`error: ${err.message}\n`);
