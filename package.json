@@ -1,6 +1,6 @@
 {
   "name": "@quickdesign/cli",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "QuickDesign CLI — image + video generation (Sora 2, Kling, Seedance 2.0, UGC), Smart Ad Creator (incl. Advantage+), Spy Brands ad intelligence, Brand DNA extraction, and designs CRUD — from your terminal or a Claude Code agent.",
   "keywords": [
     "quickdesign",

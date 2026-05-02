@@ -5,6 +5,37 @@ description: The official method for producing talking-avatar / UGC promo videos
 
 This is **the** method for talking-avatar UGC video production. Use it for any spoken-script video, regardless of total length.
 
+## Model picker
+
+**Default model: `seedance-2.0-r2v`** (Seedance 2.0 reference-to-video). Best-fit for this pipeline because it's the only currently-active model that supports all four primitives this method depends on:
+
+1. Reference label syntax (`@Image1`, `@Image2`) — anchors identity + setting consistency without verbose verbatim descriptions
+2. Audio reference (`audio_urls`) — locks voice character across multi-segment outputs without TTS chains
+3. Integer duration grid 4–15s — matches natural speaking-segment lengths (~30 words / 15s @ 2 wps)
+4. Reasonable price for iteration (~440-520cr per 11-13s segment with audio)
+
+When a new model that supports the same primitives lands (Seedance 3, Veo 3 with audio refs, Sora 3, etc.), update this picker to name it and call out where it diverges. Until then this whole doc assumes Seedance 2.0 R2V.
+
+**Pre-flight check** (the agent should do this for non-trivial requests):
+
+```bash
+quickdesign video models | jq '.data[] | select(.slug | contains("r2v") or contains("v2v"))'
+```
+
+If `seedance-2.0-r2v` is no longer in the list, the registry has moved on — pick the closest replacement and the rest of this pipeline still applies (only the syntax details in `references/seedance-reference-syntax.md` need adjusting).
+
+**When to deviate from the default:**
+
+| Situation | Use instead | Why |
+|---|---|---|
+| Single-shot, no segment cut needed, ≤15s script | `seedance-2.0-i2v` | Simpler — no reference grammar required, just pass `--image` |
+| User explicitly wants Sora 2 audio quality | `sora2-i2v` (4/8/12s) | Native mix is cleaner; voice continuity strategy changes (no audio_urls) |
+| Budget-tight, simple animation | `kling-2.1-standard` | Cheaper but no `@Image1` refs, no `audio_urls` — single segments only |
+| Already-rendered video needs new caption | `fal-auto-subtitle` | Post-processing only, see `auto-subtitle.md` |
+| Generated video is too low-res | `topaz-video-upscale` / `bytedance-video-upscale` | Run after final concat |
+
+The rest of this doc (segment planning, voice continuity, concat) is model-agnostic. The Seedance-specific bits live in `seedance-reference-syntax.md` so swapping models in the future is a localized edit.
+
 ## Method
 
 1. **Plan the segments.** Count script words. Each Seedance 2.0 segment is integer 4-15s and fits ~30 words at 2 wps natural pace. Divide the script at sentence/beat boundaries so each segment lands tight (no padding). The final segment may be shorter (e.g. 8s for a punchy CTA).

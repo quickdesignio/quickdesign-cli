@@ -210,11 +210,20 @@ export function registerImageCommands(program: Command): void {
 
   image
     .command('models')
-    .description('List available image models')
+    .description('List available image models (active in the registry)')
     .action(async () => {
       try {
-        const r = await request<unknown>('/api/models', { query: { category: 'image' }, auth: false });
-        emitJson(r);
+        // BFF expects exact category names (`image_edit`, `image_generate`...)
+        // — fetch all and filter client-side so callers can use the short
+        // `image` / `video` family names.
+        const r = await request<{ success?: boolean; data?: Array<{ category?: string }> }>(
+          '/api/models',
+          { auth: false },
+        );
+        const data = Array.isArray(r?.data)
+          ? r.data.filter((m) => typeof m.category === 'string' && m.category.startsWith('image_'))
+          : [];
+        emitJson({ success: true, data });
       } catch (err) { fail(err); }
     });
 }

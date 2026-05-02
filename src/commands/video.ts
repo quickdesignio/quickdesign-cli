@@ -812,6 +812,25 @@ export function registerVideoCommands(program: Command): void {
         emitJson(r);
       } catch (err) { fail(err); }
     });
+
+  video
+    .command('models')
+    .description('List active video models (generate / upscale / post-processing) with cost / durations / aspect ratios')
+    .action(async () => {
+      try {
+        // BFF expects exact category names — fetch all + filter client-side
+        // so the agent gets every video_* model in one call (generate +
+        // upscale + post-processing).
+        const r = await request<{ success?: boolean; data?: Array<{ category?: string }> }>(
+          '/api/models',
+          { auth: false },
+        );
+        const data = Array.isArray(r?.data)
+          ? r.data.filter((m) => typeof m.category === 'string' && m.category.startsWith('video_'))
+          : [];
+        emitJson({ success: true, data });
+      } catch (err) { fail(err); }
+    });
 }
 
 function collect(value: string, previous: string[]): string[] {

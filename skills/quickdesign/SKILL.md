@@ -92,6 +92,27 @@ printf "file 'seg1.mp4'\nfile 'seg2.mp4'\nfile 'seg3.mp4'\n" > /tmp/concat.txt
 ffmpeg -y -f concat -safe 0 -i /tmp/concat.txt -c copy final.mp4
 ```
 
+## Available models — discover at runtime
+
+The model registry is DB-driven and changes over time (new providers, retired versions, repriced tiers). **Don't hardcode "Seedance 2.0 R2V is the only option" into your plan** — query the registry first when the user asks for something nonstandard or you're picking between alternatives.
+
+```bash
+# Active video models (generate / upscale / post-processing)
+quickdesign video models
+
+# Active image-edit models (nano-banana, gpt-image, seedream, etc.)
+quickdesign image models
+```
+
+Output is JSON — each model has `slug`, `category`, `provider`, `costConfig`, `durations`, `aspectRatios`, `resolutions`. Filter / pick by need:
+
+- **UGC talking-head** (current best, this skill's default) → `seedance-2.0-r2v` (1-15s, supports `@Image1`/`@Audio1`/`@Video1` references, voice continuity via `--reference-audio`)
+- **Cinematic single-shot, audio quality matters** → `sora2-i2v` if active (4/8/12s, native audio mix is cleaner)
+- **Budget-constrained or simple loop** → `kling-2.1-standard` / `kling-3-standard`
+- **Image-to-video without reference grammar** → `seedance-2.0-i2v` (start from one image, no `@Image1` syntax)
+
+When this skill's docs reference "Seedance" it's because Seedance R2V is currently the best-fit for the multi-segment UGC pipeline (reference labels + audio continuity + duration grid 4-15s). When a new model lands that supports the same primitives, the picker section in `references/ugc-video-pipeline.md` will name it; until then default = Seedance 2.0 R2V.
+
 ## Reference index — read on demand
 
 These files cover the deep knowledge for each topic. Read the relevant one(s) when planning a generation.
