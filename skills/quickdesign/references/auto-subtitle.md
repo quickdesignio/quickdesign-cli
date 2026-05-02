@@ -40,7 +40,8 @@ The `--style <preset>` flag selects a baseline; any explicit `--<flag>` override
 
 | Preset | Font | Size | Weight | Color | Highlight | Stroke | Pos | Words/line | Anim | Use case |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `tiktok` (default) | Montserrat | 100 | bold | white | purple | 3 black | bottom +75 | **1** | on | UGC creator content, vertical reels |
+| `default` (default) | Montserrat | **65** | bold | white | yellow | 2 black | bottom +60 | **5** | on | Balanced, readable, works for most content |
+| `tiktok` | Montserrat | 100 | bold | white | purple | 3 black | bottom +75 | **1** | on | UGC creator content, vertical reels, single-word pop |
 | `minimal` | Inter | 60 | normal | white | white (none) | 1 black | bottom +50 | **8** | off | Editorial, brand ad, professional |
 | `karaoke` | Montserrat | 80 | bold | white | yellow | 2 black | center 0 | **3** | on | Music / lyric content |
 | `reels-pop` | Bebas Neue | 110 | black | yellow | red | 4 black | center -50 | **1** | on | Punchy hook content, attention-grab |
@@ -84,7 +85,8 @@ $0.03 per minute of source video on fal.ai → **1 credit per second** at our st
 2. **Multi-segment UGC pipelines**: subtitle the FINAL concat'd video, NOT each individual segment. This keeps timing continuous — no caption restart at segment cuts.
 
 3. **Style picking**:
-   - User says "TikTok-style" / "creator selfie" / "single word pop" → `--style tiktok` (default).
+   - User says nothing specific about style → omit `--style` (uses `default`: 5 words/line, font 65, bottom-positioned, yellow highlight). Good baseline for talking-head, narration, mixed content.
+   - User says "TikTok-style" / "creator selfie" / "single word pop" → `--style tiktok`.
    - User says "clean", "professional", "minimal", "editorial" → `--style minimal`.
    - User says "music video", "lyric video", "karaoke" → `--style karaoke`.
    - User says "punchy", "attention grab", "hook style", "viral" → `--style reels-pop`.

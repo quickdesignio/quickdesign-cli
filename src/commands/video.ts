@@ -29,6 +29,20 @@ import { ensureRemoteUrl, looksLikeLocalPath } from '../utils/upload.js';
  * Override any field with the corresponding `--<flag>` (e.g. `--font Poppins`).
  */
 const SUBTITLE_STYLES = {
+  default: {
+    font_name: 'Montserrat',
+    font_size: 65,
+    font_weight: 'bold',
+    font_color: 'white',
+    highlight_color: 'yellow',
+    stroke_width: 2,
+    stroke_color: 'black',
+    background_color: 'none',
+    position: 'bottom',
+    y_offset: 60,
+    words_per_subtitle: 5,
+    enable_animation: true,
+  },
   tiktok: {
     font_name: 'Montserrat',
     font_size: 100,
@@ -509,7 +523,7 @@ export function registerVideoCommands(program: Command): void {
     .command('subtitle')
     .description('Add karaoke-style auto subtitles to a video (fal-ai/workflow-utilities/auto-subtitle)')
     .argument('<video>', 'Source video URL or local path (auto-uploaded)')
-    .option('--style <preset>', 'Style preset: tiktok | minimal | karaoke | reels-pop', 'tiktok')
+    .option('--style <preset>', 'Style preset: default | tiktok | minimal | karaoke | reels-pop', 'default')
     .option('--language <code>', 'Language code (e.g. en, tr, es, fr, de) or 3-letter ISO', 'en')
     .option('--duration-seconds <n>', 'Source duration in seconds (auto-detected via ffprobe for local files)', (v) => parseFloat(v))
     // Style override flags — applied on top of preset
@@ -551,7 +565,7 @@ export function registerVideoCommands(program: Command): void {
       output?: string;
     }) => {
       try {
-        const styleName = (opts.style ?? 'tiktok').toLowerCase();
+        const styleName = (opts.style ?? 'default').toLowerCase();
         const preset = SUBTITLE_STYLES[styleName as keyof typeof SUBTITLE_STYLES];
         if (!preset) {
           fail(`Unknown style: ${opts.style}. One of: ${Object.keys(SUBTITLE_STYLES).join(' | ')}`, 2);

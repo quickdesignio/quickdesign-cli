@@ -173,7 +173,7 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `upscale-status <jobId>` | One-shot status check |
 | `upscale-wait <jobId> [--timeout] [-o path]` | Resume polling on an upscale job |
 | `upscale-history [--limit]` | List upscale jobs |
-| `subtitle <video> [--style tiktok\|minimal\|karaoke\|reels-pop] [--language] [--font-name] [--font-size] [--position] [--wait] [-o path]` | Burn karaoke-style auto-subtitles into a video (ElevenLabs ASR + libass; ~$0.03/min). Local files are auto-uploaded to R2. |
+| `subtitle <video> [--style default\|tiktok\|minimal\|karaoke\|reels-pop] [--language] [--font-name] [--font-size] [--position] [--wait] [-o path]` | Burn karaoke-style auto-subtitles into a video (ElevenLabs ASR + libass; ~$0.03/min). Default preset: Montserrat 65px bold, 5 words/line, bottom-positioned, yellow highlight. Local files are auto-uploaded to R2. |
 | `subtitle-status <jobId>` | One-shot status check |
 | `subtitle-history [--limit]` | List subtitle jobs |
 
