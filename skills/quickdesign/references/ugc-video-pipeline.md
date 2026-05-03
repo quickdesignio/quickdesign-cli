@@ -24,21 +24,19 @@ quickdesign video models | jq '.data[] | select(.slug | contains("r2v") or conta
 
 If `seedance-2.0-r2v` is no longer in the list, the registry has moved on — pick the closest replacement and the rest of this pipeline still applies (only the syntax details in `references/seedance-reference-syntax.md` need adjusting).
 
-**Length is NOT a reason to switch off R2V.** R2V is the universal default for UGC across the entire 4-15s grid, single- and multi-segment alike. A short single-shot script does not justify dropping to `seedance-2.0-i2v` — passing one `--reference-image` to R2V is functionally identical to passing `--image` to i2v from the user's perspective, and it preserves every primitive this pipeline depends on (`@Image1`, `--reference-audio`, multi-`--reference-image`). Going to i2v for a short clip is a downgrade with no upside.
-
 **When to deviate from the default:**
 
 | Situation | Use instead | Why |
 |---|---|---|
-| User explicitly wants Sora 2 audio quality (cinematic single-shot, 4/8/12s) | `sora2-i2v` | Native mix is cleaner; voice-continuity strategy changes (no `audio_urls` available) |
-| User explicitly opts into i2v, OR `seedance-2.0-r2v` not in registry | `seedance-2.0-i2v` | Only override the universal R2V default on explicit user opt-in — never silently |
-| Budget-tight, simple loop, no voice / no product fidelity needed | `kling-2.1-standard` | Cheaper but no `@Image1` refs, no `audio_urls` — single segments only |
+| Single-shot, no segment cut needed, ≤15s script | `seedance-2.0-i2v` | Simpler — no reference grammar required, just pass `--image` |
+| User explicitly wants Sora 2 audio quality | `sora2-i2v` (4/8/12s) | Native mix is cleaner; voice continuity strategy changes (no audio_urls) |
+| Budget-tight, simple animation | `kling-2.1-standard` | Cheaper but no `@Image1` refs, no `audio_urls` — single segments only |
 | Already-rendered video needs new caption | `fal-auto-subtitle` | Post-processing only, see `auto-subtitle.md` |
 | Generated video is too low-res | `topaz-video-upscale` / `bytedance-video-upscale` | Run after final concat |
 
 The rest of this doc (segment planning, voice continuity, concat) is model-agnostic. The Seedance-specific bits live in `seedance-reference-syntax.md` so swapping models in the future is a localized edit.
 
-**When more than one model is viable** for the request (e.g. user said "I want Sora 2 for the audio quality" on a ≤12s single-shot brief), don't pick silently — use the `AskUserQuestion` tool to surface the tradeoff with `seedance-2.0-r2v` marked `(Recommended)` first. Don't offer `seedance-2.0-i2v` as a default-tier alternative; only surface it if the user named it themselves. See `confirmation-rules.md#use-askuserquestion-for-structured-choice-gates` for the exact pattern.
+**When more than one model is viable** for the request (e.g. user gave a ≤12s single-shot prompt that both Seedance i2v and Sora 2 i2v can handle, or said "use the cheapest option"), don't pick silently — use the `AskUserQuestion` tool to surface the tradeoff with `seedance-2.0-r2v` (or whichever is canonical for the request type) marked `(Recommended)` first. See `confirmation-rules.md#use-askuserquestion-for-structured-choice-gates` for the exact pattern.
 
 ## Method
 
