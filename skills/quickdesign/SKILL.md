@@ -21,7 +21,9 @@ Do NOT use for: pure text generation, code edits, search — those have their ow
 
 ## Cardinal rules (read first, every time)
 
-These four rules apply to every Seedance R2V generation. Breaking any of them produces visible defects in the output.
+These rules apply to every Seedance R2V generation. Breaking any of them produces visible defects in the output.
+
+0. **Default model for ANY UGC / talking-avatar / promo / explainer = `seedance-2.0-r2v`, regardless of duration or segment count.** Don't downgrade to `seedance-2.0-i2v` for short / single-shot scripts. R2V handles 4-15s single-shot just as well as multi-segment, and going through R2V from the start preserves every primitive this skill depends on (`@Image1` references, multi-`--reference-image`, `--reference-audio` voice continuity). The CLI accepts a single `--reference-image` for R2V cleanly — there is no "syntactic burden" to going through R2V for a short clip. Only switch off R2V on **explicit user opt-in** (e.g. "use Sora 2 because the audio is cleaner") or if R2V is unavailable in the registry. Never silently pick i2v because the script is "short enough."
 
 1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts, and pass EVERY relevant photo as a separate reference.** Both `nano-banana-2` (image edit) and Seedance 2.0 R2V (video) accept multiple `--reference-image` flags. If the user uploaded a product from two angles, pass both — describing the second one in prose instead is a regression that produces invented details. Don't re-describe the person, wardrobe, or product in words; that competes with the reference image and causes drift. See `references/seedance-reference-syntax.md` and `references/multi-reference-pattern.md`.
 
@@ -108,12 +110,12 @@ quickdesign image models
 
 Output is JSON — each model has `slug`, `category`, `provider`, `costConfig`, `durations`, `aspectRatios`, `resolutions`. Filter / pick by need:
 
-- **UGC talking-head** (current best, this skill's default) → `seedance-2.0-r2v` (1-15s, supports `@Image1`/`@Audio1`/`@Video1` references, voice continuity via `--reference-audio`)
-- **Cinematic single-shot, audio quality matters** → `sora2-i2v` if active (4/8/12s, native audio mix is cleaner)
-- **Budget-constrained or simple loop** → `kling-2.1-standard` / `kling-3-standard`
-- **Image-to-video without reference grammar** → `seedance-2.0-i2v` (start from one image, no `@Image1` syntax)
+- **UGC / talking-avatar / promo / explainer — ANY duration, single OR multi-segment** (this skill's universal default) → `seedance-2.0-r2v`. Don't downgrade to i2v just because the script is short — R2V handles 4-15s single-shot just as well as multi-segment, with strictly more capability (`@Image1`/`@Audio1`/`@Video1` reference labels, voice continuity via `--reference-audio`, repeatable `--reference-image` for multi-product). The CLI passes a single `--reference-image` cleanly to R2V — there is no syntactic burden to "going through R2V" for a short clip.
+- **Cinematic single-shot, audio quality matters** → `sora2-i2v` if active (4/8/12s, native audio mix is cleaner — but you give up reference grammar AND voice-continuity strategy across segments)
+- **Budget-constrained or simple loop, no voice / no product reference fidelity needed** → `kling-2.1-standard` / `kling-3-standard`
+- **`seedance-2.0-i2v`** — niche only. Use ONLY when the user has explicitly opted into i2v, OR R2V is unavailable in the registry. Default to R2V for everything else; i2v has no advantage over R2V in normal UGC work and quietly forfeits the reference-grammar / multi-ref / voice-continuity primitives this skill depends on.
 
-When this skill's docs reference "Seedance" it's because Seedance R2V is currently the best-fit for the multi-segment UGC pipeline (reference labels + audio continuity + duration grid 4-15s). When a new model lands that supports the same primitives, the picker section in `references/ugc-video-pipeline.md` will name it; until then default = Seedance 2.0 R2V.
+When this skill's docs reference "Seedance" it's because Seedance R2V is currently the best-fit for the entire UGC pipeline (single AND multi-segment, short AND long scripts, with or without product references). When a new model lands that supports the same primitives, the picker section in `references/ugc-video-pipeline.md` will name it; until then default = Seedance 2.0 R2V, regardless of duration or segment count.
 
 ## Reference index — read on demand
 
