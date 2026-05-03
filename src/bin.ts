@@ -6,6 +6,9 @@
  * subcommand can be independently edited / tested.
  */
 import { Command } from 'commander';
+import { readFileSync } from 'fs';
+import { homedir } from 'os';
+import path from 'path';
 import { registerAuthCommands } from './commands/auth.js';
 import { registerSpyCommands } from './commands/spy.js';
 import { registerImageCommands } from './commands/image.js';
@@ -16,6 +19,48 @@ import { registerDesignCommands } from './commands/design.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerCostCommand } from './commands/cost.js';
 import pkg from '../package.json' with { type: 'json' };
+
+/**
+ * Stale-skill check. The skill bundle ships INSIDE the npm package (under
+ * `skills/quickdesign/`) but is only copied to the user's `~/.claude/` dir
+ * when they explicitly run `quickdesign init --skill-only --force`. So a
+ * plain `npm install -g @quickdesign/cli@latest` upgrades the CLI but leaves
+ * the user's installed skill stale — which is the silent failure mode that
+ * keeps producing wrong-default behavior across sessions.
+ *
+ * To make it loud-but-non-blocking, `npm run stamp-skill-version` writes the
+ * current package.json version to `skills/quickdesign/.version`. `init` copies
+ * that file with the skill, so `~/.claude/skills/quickdesign/.version` records
+ * the version the user installed. On every CLI startup we compare; if older,
+ * we print one stderr line. We never auto-overwrite — that could clobber
+ * user edits.
+ */
+function checkSkillStaleness(currentVersion: string): void {
+  try {
+    const installed = readFileSync(
+      path.join(homedir(), '.claude', 'skills', 'quickdesign', '.version'),
+      'utf-8',
+    ).trim();
+    if (!installed || installed === currentVersion) return;
+    if (!isOlderSemver(installed, currentVersion)) return; // user's local is newer or equal
+    process.stderr.write(
+      `note: quickdesign skill at ~/.claude/skills/quickdesign is v${installed}; ` +
+        `CLI is v${currentVersion}. Run \`quickdesign init --skill-only --force\` ` +
+        `to refresh.\n`,
+    );
+  } catch {
+    // Skill not installed yet, .version missing (older install), or any IO
+    // error. Never block the CLI on this — silent return is fine.
+  }
+}
+
+function isOlderSemver(a: string, b: string): boolean {
+  const [a1 = 0, a2 = 0, a3 = 0] = a.split('.').map((s) => parseInt(s, 10) || 0);
+  const [b1 = 0, b2 = 0, b3 = 0] = b.split('.').map((s) => parseInt(s, 10) || 0);
+  if (a1 !== b1) return a1 < b1;
+  if (a2 !== b2) return a2 < b2;
+  return a3 < b3;
+}
 
 const program = new Command();
 
@@ -57,6 +102,8 @@ registerAdCreatorCommands(program);
 registerDesignCommands(program);
 registerInitCommand(program);
 registerCostCommand(program);
+
+checkSkillStaleness((pkg as { version: string }).version ?? '0.0.0');
 
 program.parseAsync(process.argv).catch((err: Error) => {
   process.stderr.write(`error: ${err.message}\n`);

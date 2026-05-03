@@ -1,6 +1,6 @@
 {
   "name": "@quickdesign/cli",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "description": "QuickDesign CLI — image + video generation (Sora 2, Kling, Seedance 2.0, UGC), Smart Ad Creator (incl. Advantage+), Spy Brands ad intelligence, Brand DNA extraction, and designs CRUD — from your terminal or a Claude Code agent.",
   "keywords": [
     "quickdesign",
@@ -39,7 +39,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc && chmod +x dist/bin.js",
+    "stamp-skill-version": "node -e \"require('fs').writeFileSync('skills/quickdesign/.version', require('./package.json').version + '\\n')\"",
+    "build": "npm run stamp-skill-version && tsc && chmod +x dist/bin.js",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
