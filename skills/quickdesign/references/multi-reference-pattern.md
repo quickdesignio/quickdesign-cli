@@ -60,7 +60,7 @@ The product anchors don't dominate the action — Seedance treats them as identi
 ## Common mistakes
 
 1. **Passing the avatar twice as @Image1 and @Image2** thinking it strengthens identity. It doesn't — it just confuses the model. One identity reference is enough.
-2. **Describing the product in prose AND passing it as @Image2.** Pick one — let the reference do the work, keep the prose for action and setting. Verbose prose dilutes the reference signal (same principle as `seedance-reference-syntax.md`).
+2. **Describing the product in prose AND passing it as @Image2.** Pick one — let the reference do the work, keep the prose for action and setting. Verbose prose dilutes the reference signal (same principle as `../models/seedance-2.0-r2v.md`).
 3. **Forgetting to use the `@ImageN` label in the prompt.** Just attaching multiple images doesn't tell the model how to use them. Be explicit: `"@Image1 holds @Image2 / @Image3 in her right hand."`
 4. **Single-image edit when the user gave multiple product photos.** This is the regression cited above. Always check what the user uploaded BEFORE drafting the prompt — if they sent 3 product angles, use 3 product angles.
 

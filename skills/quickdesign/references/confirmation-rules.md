@@ -119,7 +119,7 @@ The UI auto-adds an "Other" option for free-text input — never include it your
 
 ### Gate-by-gate canonical patterns
 
-**Model picker** (when more than one model in the registry is viable for the request — see `ugc-video-pipeline.md#model-picker`):
+**Model picker** (when more than one model in the registry is viable for the request — see `../pipelines/ugc-video.md#model-picker`):
 
 ```
 question: "Which video model should I use for the 3 talking-head segments?"

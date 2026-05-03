@@ -22,7 +22,7 @@ When a new model that supports the same primitives lands (Seedance 3, Veo 3 with
 quickdesign video models | jq '.data[] | select(.slug | contains("r2v") or contains("v2v"))'
 ```
 
-If `seedance-2.0-r2v` is no longer in the list, the registry has moved on — pick the closest replacement and the rest of this pipeline still applies (only the syntax details in `references/seedance-reference-syntax.md` need adjusting).
+If `seedance-2.0-r2v` is no longer in the list, the registry has moved on — pick the closest replacement and the rest of this pipeline still applies (only the syntax details in `../models/seedance-2.0-r2v.md` need adjusting, or a new model card needs to be added).
 
 **Length is NOT a reason to switch off R2V.** R2V is the universal default for UGC across the entire 4-15s grid, single- and multi-segment alike. A short single-shot script does not justify dropping to `seedance-2.0-i2v` — passing one `--reference-image` to R2V is functionally identical to passing `--image` to i2v from the user's perspective, and it preserves every primitive this pipeline depends on (`@Image1`, `--reference-audio`, multi-`--reference-image`). Going to i2v for a short clip is a downgrade with no upside.
 
@@ -33,12 +33,18 @@ If `seedance-2.0-r2v` is no longer in the list, the registry has moved on — pi
 | User explicitly wants Sora 2 audio quality (cinematic single-shot, 4/8/12s) | `sora2-i2v` | Native mix is cleaner; voice-continuity strategy changes (no `audio_urls` available) |
 | User explicitly opts into i2v, OR `seedance-2.0-r2v` not in registry | `seedance-2.0-i2v` | Only override the universal R2V default on explicit user opt-in — never silently |
 | Budget-tight, simple loop, no voice / no product fidelity needed | `kling-2.1-standard` | Cheaper but no `@Image1` refs, no `audio_urls` — single segments only |
-| Already-rendered video needs new caption | `fal-auto-subtitle` | Post-processing only, see `auto-subtitle.md` |
-| Generated video is too low-res | `topaz-video-upscale` / `bytedance-video-upscale` | Run after final concat |
+| Already-rendered video needs new caption | `fal-auto-subtitle` | Post-processing only, see `../references/auto-subtitle.md` |
+| Generated video is too low-res | `topaz-video-upscale` / `bytedance-video-upscale` | Run after final concat — see `../models/topaz-video-upscale.md` |
 
-The rest of this doc (segment planning, voice continuity, concat) is model-agnostic. The Seedance-specific bits live in `seedance-reference-syntax.md` so swapping models in the future is a localized edit.
+For full per-model gotchas / prompt skeletons / failure modes, jump to the model card:
+- `../models/seedance-2.0-r2v.md` — the default; see this for prompt syntax
+- `../models/sora2-i2v.md` — when audio quality is the explicit driver
+- `../models/kling-3-pro.md` — budget alternative for non-spoken b-roll
+- `../models/seedance-2.0-i2v.md` — almost never the right pick (here for completeness)
 
-**When more than one model is viable** for the request (e.g. user said "I want Sora 2 for the audio quality" on a ≤12s single-shot brief), don't pick silently — use the `AskUserQuestion` tool to surface the tradeoff with `seedance-2.0-r2v` marked `(Recommended)` first. Don't offer `seedance-2.0-i2v` as a default-tier alternative; only surface it if the user named it themselves. See `confirmation-rules.md#use-askuserquestion-for-structured-choice-gates` for the exact pattern.
+The rest of this doc (segment planning, voice continuity, concat) is model-agnostic. The Seedance-specific bits live in `../models/seedance-2.0-r2v.md` so swapping models in the future is a localized edit.
+
+**When more than one model is viable** for the request (e.g. user said "I want Sora 2 for the audio quality" on a ≤12s single-shot brief), don't pick silently — use the `AskUserQuestion` tool to surface the tradeoff with `seedance-2.0-r2v` marked `(Recommended)` first. Don't offer `seedance-2.0-i2v` as a default-tier alternative; only surface it if the user named it themselves. See `../references/confirmation-rules.md#use-askuserquestion-for-structured-choice-gates` for the exact pattern.
 
 ## Method
 
@@ -59,9 +65,9 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
    - Reference image visually carries scene-narrative weight (editorial pose, prop interaction, dramatic lighting) → **(b) angle-cut** likely better even if user didn't say so explicitly; surface the choice in the plan summary so they can switch.
    - State change required (mouth empty when source has crystal, etc.) → must use per-segment image edits regardless of style.
 
-   **Don't write camera-motion verbs in any prompt** ("slowly zooms in", "pulls back", "static hold"). Seedance produces natural micro-motion (breathing, head turns, gestures) on its own. See `first-frame-not-camera-motion.md`.
+   **Don't write camera-motion verbs in any prompt** ("slowly zooms in", "pulls back", "static hold"). Seedance produces natural micro-motion (breathing, head turns, gestures) on its own. See `../references/first-frame-not-camera-motion.md`.
 
-3. **Decide per-segment reference images** based on what each segment NEEDS visually vs. what the source reference shows. See `narrative-arc.md` for the full decision tree. Quick version per segment:
+3. **Decide per-segment reference images** based on what each segment NEEDS visually vs. what the source reference shows. See `../references/narrative-arc.md` for the full decision tree. Quick version per segment:
    - **Pure talking-head, no state change** → reuse source reference, 0 edits.
    - **Style (a) angle-cut** → generate angle-shifted reference via nano-banana-2 (~24cr at 2K each).
    - **Significant state change vs. source** (e.g. mouth empty when source shows mouth full, glasses off when source shows them on) → **MUST generate a state-matched reference via nano-banana-2** for that segment. The reference image overrides action-description "mouth is now empty" wording — verified empirically. Without a matched reference, expect visible state breaks at cuts.
@@ -87,7 +93,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
      -p '<prompt using @Image1 reference syntax>'
    ```
 
-   **Prompt syntax — use `@Image1` references, not verbatim identity descriptions.** See `seedance-reference-syntax.md` for the full rule. Standard skeleton:
+   **Prompt syntax — use `@Image1` references, not verbatim identity descriptions.** See `../models/seedance-2.0-r2v.md` for the full rule + reference grammar. Standard skeleton:
    ```
    @Image1 in the same exact setting throughout.
    <one-sentence action/state for this segment>.
@@ -96,7 +102,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
    Vertical 9:16 format.
    ```
 
-   `--generate-audio` is on by default. The "in the same exact setting throughout" pin handles location continuity. The two short audio/visual suppression lines stay minimal — don't enumerate ambient sounds you want. See `no-music-no-subtitles.md`.
+   `--generate-audio` is on by default. The "in the same exact setting throughout" pin handles location continuity. The two short audio/visual suppression lines stay minimal — don't enumerate ambient sounds you want. See `../references/no-music-no-subtitles.md`.
 
 5. **Extract Segment 1's audio** for voice continuity:
    ```bash
