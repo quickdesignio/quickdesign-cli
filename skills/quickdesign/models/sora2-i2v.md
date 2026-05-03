@@ -32,7 +32,7 @@ quickdesign video models | jq '.data[] | select(.slug=="sora2-i2v")'
 ```
 <scene description with subject + setting + lighting + mood>.
 The person says: "<verbatim quoted speech>".
-No layered music. No subtitles or on-screen text.
+No music score. No subtitles or on-screen text.
 <aspect ratio> format.
 ```
 
@@ -40,7 +40,7 @@ Note: there's no `@Image1` to lean on, so subject / setting description in the p
 
 ## Gotchas / failure modes
 
-1. **Less aggressive music bed than Seedance** — but it can still layer one. Keep the `No layered music.` line.
+1. **Less aggressive music bed than Seedance** — but it can still layer one. Keep the `No music score.` line.
 2. **Subtitle hallucination** — same as Seedance, add `No subtitles or on-screen text.`
 3. **No reference labels** means reference image is hint-only, not anchor — small details (shirt color, room props) sometimes reinterpret. Less reliable for product-fidelity work; for products use Seedance R2V.
 4. **Voice character is fresh per call** — if you generate a 12s ad with Sora 2 and want a follow-up segment, you can't lock the voice. The follow-up must be either (a) standalone with no continuity expectation, (b) generated as a single longer Sora call, or (c) switched to Seedance R2V.

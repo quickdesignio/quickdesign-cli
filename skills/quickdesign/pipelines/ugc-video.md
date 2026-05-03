@@ -98,7 +98,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
    @Image1 in the same exact setting throughout.
    <one-sentence action/state for this segment>.
    He/She/The person says: "<verbatim quoted speech>".
-   No layered music. No subtitles or on-screen text.
+   No music score. No subtitles or on-screen text.
    Vertical 9:16 format.
    ```
 

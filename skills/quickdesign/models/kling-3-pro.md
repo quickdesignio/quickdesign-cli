@@ -48,7 +48,7 @@ Compare via `quickdesign cost --category video | grep kling`.
 
 1. **No `audio_urls` continuity** — every segment generates a fresh voice. Multi-segment Kling is voice-incoherent unless you use TTS + lipsync external pipeline.
 2. **No `@Image1` reference grammar** — descriptive prompts carry more weight than with Seedance R2V. Be more verbal.
-3. **Subtitle / music defaults are less aggressive** than Seedance, but still add `No layered music.` + `No subtitles.` to be safe.
+3. **Subtitle / music defaults are less aggressive** than Seedance, but still add `No music score.` + `No subtitles.` to be safe.
 
 ## Cross-references
 

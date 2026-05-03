@@ -47,7 +47,7 @@ He says: "..."
 ✅ Right:
 ```
 @Image1 in the same setting. Hands at his sides. He says: "..."
-No layered music. No subtitles or on-screen text.
+No music score. No subtitles or on-screen text.
 ```
 
 ## What stays in the prompt vs what becomes a reference
@@ -70,7 +70,7 @@ No layered music. No subtitles or on-screen text.
 @Image1 in the same exact setting throughout.
 <one-sentence action/state for this segment>.
 He/She/The person says: "<verbatim quoted speech for this segment>".
-No layered music. No subtitles or on-screen text.
+No music score. No subtitles or on-screen text.
 Vertical 9:16 format.
 ```
 
@@ -79,13 +79,13 @@ For multi-product UGC, the skeleton expands:
 ```
 @Image1 in the same setting. The held product matches @Image2 / @Image3 exactly.
 <action>. He/She says: "<script>".
-No layered music. No subtitles or on-screen text.
+No music score. No subtitles or on-screen text.
 Vertical 9:16 format.
 ```
 
 ## Gotchas / failure modes
 
-1. **Auto-layered music bed under voiceover.** Seedance defaults to layering a music track when prompts contain quoted speech. Add `No layered music.` to suppress. Don't enumerate ambient sounds you want to keep — over-prescribing makes audio feel scripted. See `../references/no-music-no-subtitles.md`.
+1. **Auto-layered music bed under voiceover.** Seedance defaults to layering a music track when prompts contain quoted speech. Add `No music score.` to suppress. Don't enumerate ambient sounds you want to keep — over-prescribing makes audio feel scripted. See `../references/no-music-no-subtitles.md`.
 
 2. **Burned hallucinated subtitles.** When a prompt has quoted speech, Seedance burns captions into pixels. They hallucinate (partial sentences, paraphrased words, wrong timing). Always add `No subtitles or on-screen text.` Use `quickdesign video subtitle` post-generation if you actually want captions — the dedicated endpoint runs real ASR. See `../references/auto-subtitle.md`.
 

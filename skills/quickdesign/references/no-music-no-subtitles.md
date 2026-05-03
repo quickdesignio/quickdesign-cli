@@ -1,5 +1,5 @@
 ---
-name: No layered music, no burned subtitles — minimal directive only
+name: No music score, no burned subtitles — minimal directive only
 description: Seedance R2V auto-layers a music bed under voiceover and burns hallucinated captions when prompts contain quoted speech. Add two short prompt lines to suppress both. Don't enumerate ambient sounds — over-prescribing makes audio feel scripted; Seedance produces natural ambient organically.
 ---
 
@@ -10,7 +10,7 @@ Seedance has two off-target defaults for UGC: it layers a music track under the 
 Add these to every R2V prompt with quoted speech (audio scope + visual scope, separate sentences):
 
 ```
-No layered music. No subtitles or on-screen text.
+No music score. No subtitles or on-screen text.
 ```
 
 That's it. Don't expand. Don't list ambient sounds you want to keep ("street noise, café chatter, dish clatter, espresso machine, footsteps") — Seedance produces natural ambient on its own; enumerating it makes the model treat your list as a script and the audio comes out feeling staged. Trust the model.

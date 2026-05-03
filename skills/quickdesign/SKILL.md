@@ -27,7 +27,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 
 2. **Multi-segment voice continuity = `--reference-audio` from Seg 1's extracted audio.** Generate Seg 1 first → `ffmpeg -vn -acodec libmp3lame` extracts audio → pass that mp3 as `--reference-audio` to Segs 2..N. Without this, every segment picks a different voice. See `references/voice-continuity.md`.
 
-3. **Suppress the layered music bed and burned subtitles — minimal directive only.** Add two short lines to the prompt: `No layered music.` and `No subtitles or on-screen text.` That's it. Do NOT enumerate ambient sounds you want to keep ("street noise, café chatter, espresso machine") — Seedance produces natural ambient on its own; over-prescribing makes audio feel scripted. See `references/no-music-no-subtitles.md`.
+3. **Suppress the layered music bed and burned subtitles — minimal directive only.** Add two short lines to the prompt: `No music score.` and `No subtitles or on-screen text.` That's it. Do NOT enumerate ambient sounds you want to keep ("street noise, café chatter, espresso machine") — Seedance produces natural ambient on its own; over-prescribing makes audio feel scripted. See `references/no-music-no-subtitles.md`.
 
 4. **For burned-in captions, use `quickdesign video subtitle` AFTER generation.** Never let the video model burn its own captions via the prompt — they hallucinate. The dedicated subtitle endpoint runs real ASR (ElevenLabs) and renders accurate karaoke-style captions. See `references/auto-subtitle.md`.
 
@@ -96,7 +96,7 @@ quickdesign video generate \
   --reference-image ~/path/to/source.png \
   --aspect-ratio 9:16 --duration 12 --resolution 1080p \
   -o ~/output.mp4 --wait \
-  -p '@Image1 in the same setting. <action>. He/She says: "..." No layered music. No subtitles or on-screen text. Vertical 9:16 format.'
+  -p '@Image1 in the same setting. <action>. He/She says: "..." No music score. No subtitles or on-screen text. Vertical 9:16 format.'
 
 # Multi-segment Seedance R2V with voice continuity
 # 1) Generate Seg 1 (sequential, native audio)
