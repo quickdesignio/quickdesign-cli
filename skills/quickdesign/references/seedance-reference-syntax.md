@@ -24,8 +24,7 @@ Seedance treats the description as scene-direction, reinterprets each segment fr
 ✅ **Reference syntax** (canonical):
 ```
 @Image1 in the same setting. Hands at his sides. He says: "..."
-No background music or score — only his speaking voice and natural ambient sound.
-No subtitles, no captions, no on-screen text overlays of any kind.
+No layered music. No subtitles or on-screen text.
 ```
 Seedance uses `@Image1` as the canonical visual truth — identity, wardrobe, setting, lighting all locked from the source. Only the action / state / dialogue are described.
 
@@ -49,8 +48,7 @@ For single-ref UGC pipeline:
 ```
 @Image1 in the same setting. <action description for this segment>.
 He/She/The person says: "<segment script>".
-No background music or score — only the speaking voice and natural ambient sound.
-No subtitles, no captions, no on-screen text overlays of any kind.
+No layered music. No subtitles or on-screen text.
 Vertical 9:16 format.
 ```
 
@@ -70,7 +68,7 @@ Seedance's reference image is meant to be a strong anchor; verbose verbatim re-d
 1. **Default**: every Seedance R2V prompt that ships with `--reference-image` uses `@Image1` instead of describing the person/setting/wardrobe in words. Multi-ref → `@Image1, @Image2, @Image3` matching the order of `--reference-image` flags.
 2. **Audio reference**: when `--reference-audio` is set, you can mention `@Audio1` if you want the model to lean on that voice (often implicit; including it doesn't hurt).
 3. **Action lines, dialogue, framing change, segment beat** stay as words — these are NEW info per segment that the reference image can't carry.
-4. **`No background music or score`** + **`No subtitles or on-screen text`** lines stay in every prompt (separate `no-music-no-subtitles.md` rule).
+4. **`No layered music.` + `No subtitles or on-screen text.`** stay in every prompt — minimal, no ambient enumeration. See `no-music-no-subtitles.md`.
 5. **`in the same setting`** style pin stays — anchors location continuity across segments without re-listing scene tokens.
 
 ## Compact prompt skeleton (use as starting template)
@@ -79,7 +77,6 @@ Seedance's reference image is meant to be a strong anchor; verbose verbatim re-d
 @Image1 in the same exact setting throughout.
 <one-sentence action/state for this segment>.
 He/She/The person says: "<verbatim quoted speech for this segment>".
-No background music or score — only the spoken voice and natural ambient sound.
-No subtitles, no captions, no on-screen text overlays of any kind.
+No layered music. No subtitles or on-screen text.
 Vertical 9:16 format.
 ```

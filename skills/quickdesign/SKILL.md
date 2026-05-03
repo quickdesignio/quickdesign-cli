@@ -29,15 +29,7 @@ These rules apply to every Seedance R2V generation. Breaking any of them produce
 
 2. **Multi-segment voice continuity = `--reference-audio` from Seg 1's extracted audio.** Generate Seg 1 first → `ffmpeg -vn -acodec libmp3lame` extracts audio → pass that mp3 as `--reference-audio` to Segs 2..N. Without this, every segment picks a different voice. See `references/voice-continuity.md`.
 
-3. **Suppress music tracks AND on-screen subtitles — keep real-world ambient sounds.** Seedance defaults are bad on both axes for UGC ads:
-   - **Music tracks**: auto-layers a music bed (pop song, cinematic score, café playlist, DJ set, workout music) under voiceover. Kills authentic creator vibe. **But**: real-world ambient sound (street noise, café chatter, dish clatter, room tone, footsteps, wind, distant conversation, espresso machine, etc.) is WANTED — that's what makes the video feel real. Only the MUSIC component gets excluded.
-   - **Subtitles**: burns captions into the pixels when the prompt contains quoted speech. The captions HALLUCINATE — they don't reliably match the spoken audio (partial sentences, paraphrased words, wrong timing). For an ad this is worse than no caption — the message viewers READ doesn't match what they HEAR.
-   
-   Default split rules for every prompt with quoted speech:
-   > `No background music or score — only the spoken voice and natural ambient sound (street noise / room tone / chatter / footsteps as appropriate to the scene).`
-   > `No subtitles, no captions, no on-screen text overlays of any kind.`
-   
-   For settings that have music in real life (cafe, bar, gym, club): keep the ambient phrasing AND explicitly name the music exclusion. Example: `"natural cafe atmosphere — distant conversations and dish clinks — but no background music, playlist, or DJ track."` See `references/no-music-no-subtitles.md`.
+3. **Suppress the layered music bed and burned subtitles — that's it.** Seedance auto-layers a music track under voiceover and burns hallucinated captions when prompts have quoted speech; both kill authentic UGC. Add two short lines: `No layered music.` and `No subtitles or on-screen text.` That's the entire intervention. **Do NOT enumerate ambient sounds** you want to keep ("street noise, café chatter, dish clatter, espresso machine, footsteps") — over-prescribing makes the audio feel scripted; Seedance produces natural ambient on its own. The `no-music-no-subtitles.md` doc exists only as a reference for the rare cases where the user explicitly opts in to music ("with a beat") or subtitles ("altyazılı").
 
 4. **For burned-in captions, always use `quickdesign video subtitle` AFTER generation.** Never let Seedance burn its own captions via the prompt — they hallucinate (partial sentences, paraphrased words, wrong timing). The dedicated subtitle endpoint runs real ASR (ElevenLabs) on the generated audio and renders accurate karaoke-style captions with customizable styling. See `references/auto-subtitle.md`.
 
@@ -67,7 +59,7 @@ quickdesign video generate \
   --reference-image ~/path/to/source.png \
   --aspect-ratio 9:16 --duration 12 --resolution 1080p \
   -o ~/output.mp4 --wait \
-  -p '@Image1 in the same setting. <action>. He/She says: "..." No background music or score — only the spoken voice and natural ambient sound. No subtitles or on-screen text overlays. Vertical 9:16 format.'
+  -p '@Image1 in the same setting. <action>. He/She says: "..." No layered music. No subtitles or on-screen text. Vertical 9:16 format.'
 
 # Auto-subtitle (karaoke style, post-generation)
 quickdesign video subtitle ./final.mp4 \

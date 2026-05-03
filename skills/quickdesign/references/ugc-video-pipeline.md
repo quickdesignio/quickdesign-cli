@@ -92,12 +92,11 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
    @Image1 in the same exact setting throughout.
    <one-sentence action/state for this segment>.
    He/She/The person says: "<verbatim quoted speech>".
-   No background music or score — only the spoken voice and natural ambient sound.
-   No subtitles, no captions, no on-screen text overlays of any kind.
+   No layered music. No subtitles or on-screen text.
    Vertical 9:16 format.
    ```
 
-   `--generate-audio` is on by default. The "in the same exact setting throughout" pin handles location continuity. The no-music + no-subtitle lines are mandatory unless user opts in (see `no-music-no-subtitles.md`).
+   `--generate-audio` is on by default. The "in the same exact setting throughout" pin handles location continuity. The two short audio/visual suppression lines stay minimal — don't enumerate ambient sounds you want. See `no-music-no-subtitles.md`.
 
 5. **Extract Segment 1's audio** for voice continuity:
    ```bash

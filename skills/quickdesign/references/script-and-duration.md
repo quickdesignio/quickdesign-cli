@@ -10,8 +10,7 @@ When the user supplies a script (TTS-style narration text) and `--generate-audio
 ```
 @Image1 in the same setting. Standing at the kitchen counter.
 The person says: "<full script verbatim>".
-No background music or score — only the spoken voice and natural ambient sound.
-No subtitles, no captions, no on-screen text overlays of any kind.
+No layered music. No subtitles or on-screen text.
 Vertical 9:16 format.
 ```
 
