@@ -58,6 +58,8 @@ hands and wrists clearly connected to forearms.
 
 ## Gotchas / failure modes
 
+0. **Compose-mode regenerates the avatar instead of editing it.** When the prompt opens with "Compose a vertical 9:16 UGC selfie frame using two reference images..." or similar, banana renders a fresh AI-look image inspired by `@Image1` rather than modifying the source's pixels. The avatar's identity is approximated but the source's lighting, grain, and lo-fi authenticity are gone — output feels synthetic. **For UGC, default to edit-style prompts** (`Edit @Image1: add ...`, `Take @Image1 as-is and only change ...`). Don't re-list scene tokens already shown in the reference, and strip quality-upgrade phrases ("photo-realistic", "studio quality", "8K") — they trigger regen. See `../references/avatar-edit-not-regenerate.md` for the verb library + setting-lock principle.
+
 1. **Hand / wrist hallucinations** when subject holds a partially-occluded prop. Failure modes: severed wrists, six-finger grips, floating hands, props phasing through fingers. Mitigation:
    - Switch to a TWO-HAND pose when single-hand grip keeps failing — banana handles two-hand grips far more reliably
    - Add explicit contact verbs ("palm wrapped around the heel, fingers gripping the toe")
@@ -79,6 +81,7 @@ hands and wrists clearly connected to forearms.
 
 ## Cross-references
 
+- Edit-style vs compose-style verbs (avatar authenticity) → `../references/avatar-edit-not-regenerate.md`
 - Multi-product reference pattern → `../references/multi-reference-pattern.md`
 - Anatomy self-check before paging user → `../references/confirmation-rules.md`
 - Resolution decision (2K vs 4K) → `../pipelines/ugc-video.md` (resolution rule)

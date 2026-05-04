@@ -37,6 +37,8 @@ These apply to every generation. Breaking any of them produces visible defects.
 
 6. **For *choice* gates use the `AskUserQuestion` tool, not free-form prose.** Model picker, transition style, resolution, banana edit approve / regenerate / cancel — call `AskUserQuestion` with a structured option list and put your recommendation FIRST with `(Recommended)`. See `references/confirmation-rules.md`.
 
+7. **When avatar is supplied AND setting doesn't change, EDIT the avatar — don't regenerate.** Compose-style banana prompts ("Compose a vertical 9:16 UGC selfie frame...", "Generate a creator-selfie scene...") cause the model to render a fresh AI-look image inspired by the avatar — losing the source's lighting, grain, and lo-fi authenticity. The result feels synthetic instead of like a real creator's edited selfie. Use edit-style verbs (`Edit @Image1: add ...`, `Take @Image1 as-is and only change ...`, `Keep every pixel of @Image1 except [region]`), don't re-list scene tokens that the reference already shows, and strip quality-upgrade words ("photo-realistic", "studio quality", "8K") from the prompt — they trigger regen. See `references/avatar-edit-not-regenerate.md`.
+
 ## Decision tree — which doc to open first
 
 **By job type:**
@@ -127,6 +129,7 @@ SKILL.md                           ← you are here: cardinal rules + decision t
 references/                        ← model-agnostic concepts (read for principles)
    confirmation-rules.md           ← gates, AskUserQuestion convention, anatomy self-check
    multi-reference-pattern.md      ← @Image1/@Image2/@Image3 multi-ref usage
+   avatar-edit-not-regenerate.md   ← edit-style verbs, don't compose-regen the avatar
    voice-continuity.md             ← --reference-audio across multi-segment
    no-music-no-subtitles.md        ← minimal music + subtitle suppression
    auto-subtitle.md                ← post-generation captions (real ASR, not model-burned)

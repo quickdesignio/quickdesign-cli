@@ -74,8 +74,11 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
    - **Borderline / ambiguous** → ASK the user before burning credit. Surface as a one-line question in the plan summary.
 
    For nano-banana-2 edit prompts:
+   - **Use edit-style verbs, not compose-style.** `Edit @Image1: ...` not `Compose a vertical 9:16 frame...`. The compose form regenerates a fresh AI-look image and loses the avatar's lighting + grain + lo-fi authenticity. See `../references/avatar-edit-not-regenerate.md` for the verb library + setting-lock principle.
    - Pin identity: "Same person, same outfit, same setting, same lighting, same props."
    - State only the change: "Now without the crystal in mouth — mouth is closed and relaxed" / "3/4 side profile from the right" / "looking surprised, eyes wider".
+   - Don't re-list scene tokens that the reference already shows — banana re-paints them and accumulates drift.
+   - Strip quality-upgrade words from the prompt: "photo-realistic" / "studio quality" / "8K" trigger regen. For UGC, "match the lighting and grain of @Image1" is the right anchor.
    - Verify identity preservation before submitting the segment — re-generate the edit if the face drifted.
 
    **Resolution rule:**

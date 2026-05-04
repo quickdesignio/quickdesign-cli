@@ -63,6 +63,7 @@ The product anchors don't dominate the action — Seedance treats them as identi
 2. **Describing the product in prose AND passing it as @Image2.** Pick one — let the reference do the work, keep the prose for action and setting. Verbose prose dilutes the reference signal (same principle as `../models/seedance-2.0-r2v.md`).
 3. **Forgetting to use the `@ImageN` label in the prompt.** Just attaching multiple images doesn't tell the model how to use them. Be explicit: `"@Image1 holds @Image2 / @Image3 in her right hand."`
 4. **Single-image edit when the user gave multiple product photos.** This is the regression cited above. Always check what the user uploaded BEFORE drafting the prompt — if they sent 3 product angles, use 3 product angles.
+5. **Compose-style verbs that trigger fresh-frame regeneration.** Even with multi-ref, if the prompt opens with "Compose a vertical 9:16 frame..." banana regenerates a fresh AI-look image instead of editing the avatar. For UGC use edit-style verbs (`Edit @Image1: add ...`); see `./avatar-edit-not-regenerate.md`.
 
 ## Checklist before generating
 
@@ -71,3 +72,4 @@ The product anchors don't dominate the action — Seedance treats them as identi
 - [ ] Product / prop → as many angles as the user provided (typically 1-3)
 - [ ] Are all references referenced by `@ImageN` label in the prompt?
 - [ ] Is the prose describing things the references already show? (cut and let the references do the work)
+- [ ] Is the prompt edit-style (`Edit @Image1: ...`) rather than compose-style (`Compose a frame...`)? Compose triggers regen and loses avatar authenticity.
