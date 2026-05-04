@@ -33,9 +33,25 @@ OK to proceed, or want to adjust duration / resolution / audio / aspect?
 
 Wait for "yes / proceed / go" or a tweak. Don't infer consent from silence.
 
-**Skip the plan gate ONLY when** the user wrote `--yes`, `proceed`, `auto`, `--no-confirm`, or similar in the original request.
+**Skip the explicit-wait ONLY when** the user wrote `--yes`, `proceed`, `auto`, `--no-confirm`, or similar in the original request — OR Claude Code is running in auto mode (see below).
 
-**Why this matters:** Generation costs tokens and time. Once started, the user can't easily change duration / resolution / audio-on-off mid-flight. Even when the briefer hands over full parameters, the confirmation pass catches generic settings (duration, resolution, audio on/off, aspect ratio) the user is most likely to want to override.
+### Auto mode — gate STILL fires, just doesn't block
+
+Claude Code's auto mode says "minimize interruptions, prefer action over planning". Auto mode optimizes for **low-cost reversible work** (file edits, research, planning); it does NOT bypass paid-generation gates. The skill takes precedence on cost-bearing actions.
+
+In auto mode, Gate 1 compresses to:
+1. **Emit the full plan summary as text** (same format as above) — BEFORE the bash call, not after
+2. **Then immediately invoke the bash generation** in the same turn
+3. The user reads the plan while the job runs (~1-3min for a Seedance segment) and can interrupt by killing the background task if the plan was wrong
+
+What auto mode does NOT permit:
+- ❌ Surfacing the plan AFTER the bash call has already started (user can't intervene before the spend)
+- ❌ Skipping the plan entirely because "the brief was clear enough"
+- ❌ Compressing the script (rule #8 — UGC without script is a guaranteed regression). If the user didn't supply quoted speech, draft one and put it in the plan summary so the user can read+correct it during the generation window.
+
+In normal (non-auto) mode, Gate 1 stays as written — emit plan, wait for "go", then proceed.
+
+**Why this matters:** Generation costs tokens and time. Once started, the user can't easily change duration / resolution / audio-on-off mid-flight. Even when the briefer hands over full parameters, the confirmation pass catches generic settings (duration, resolution, audio on/off, aspect ratio) the user is most likely to want to override. Auto mode trades the explicit "go" wait for keeping the plan visible-but-fast — it does NOT trade the plan itself.
 
 ## Gate 2: Banana edit reference image before Seedance R2V
 
@@ -92,6 +108,12 @@ Real example from production: a mom-selfie hook segment was banana-edited as thi
 ## Exception — talking-head UGC with no banana edit
 
 When the segment uses the original source reference (no edit), Gate 2 doesn't apply because there's nothing rendered to approve — the source is what the user already gave us. Only Gate 1 (plan summary) applies.
+
+**But:** "no banana edit" is a real choice that should be surfaced in the plan summary, not assumed. For UGC where the avatar holds / wears / interacts with a product:
+- **Banana edit pre-stage** = the avatar+product composition is rendered as one image first, then fed as a single `@Image1` to Seedance R2V. Higher cost (~12-48cr extra), but the agent + user both see the composition before paying for the 12s video; lower drift mid-render.
+- **Direct R2V multi-ref** = avatar + product passed as two separate `--reference-image` flags, R2V composes the interaction during generation. Cheaper, but the composition is unseen until the video lands; if R2V doesn't have the avatar holding the product naturally, the segment is wasted.
+
+Neither is universally "right". For first-time UGC with a new avatar and a new product, banana pre-stage is the safer default; for repeat work where the avatar's identity is known to render cleanly, direct multi-ref R2V is fine. **State which path you're taking in the plan summary** so the user can flip it before generation.
 
 ## Cost-asymmetry summary
 
