@@ -1,0 +1,17 @@
+{
+  "name": "quickdesign",
+  "owner": {
+    "name": "QuickDesign",
+    "url": "https://quickdesign.io"
+  },
+  "description": "QuickDesign CLI plugin marketplace — AI media generation skill (UGC video, image edit, video upscale) backed by the npm-distributed `quickdesign` binary.",
+  "plugins": [
+    {
+      "name": "quickdesign",
+      "source": ".",
+      "description": "AI media generation skill: Seedance 2.0 R2V, Sora 2, Kling, Nano Banana 2, Topaz upscale. Multi-segment UGC pipeline with voice continuity. Includes per-model reference cards, model-agnostic concept docs, and the canonical talking-avatar workflow.",
+      "category": "media",
+      "tags": ["video", "image", "ugc", "ai-generation"]
+    }
+  ]
+}

@@ -15,12 +15,33 @@ Command-line interface for [QuickDesign](https://quickdesign.io) — built so an
 
 ## Install
 
+There are two ways to install. Pick whichever matches how you use Claude Code today.
+
+### Option A — npm (CLI binary + skill bundle, classic)
+
 ```bash
 npm install -g @quickdesign/cli
 quickdesign init        # one-time bootstrap: doctor + skill + login
 ```
 
-Requires Node.js ≥ 18.17.
+This installs the `quickdesign` binary AND copies the Claude Code skill into `~/.claude/skills/quickdesign/`. Best for standalone CLI users + scripted/CI use.
+
+### Option B — Claude Code plugin marketplace
+
+```text
+# Inside Claude Code:
+/plugin marketplace add ottasilver/quickdesign-cli
+/plugin install quickdesign@quickdesign
+
+# Still need the binary on PATH for actual generation:
+npm install -g @quickdesign/cli
+```
+
+The plugin distributes the skill (`SKILL.md` + `references/` + `pipelines/` + `models/`) under `~/.claude/plugins/quickdesign/`. New skill versions reach you whenever you run `/plugin marketplace update` — no manual `quickdesign init --skill-only --force` required. The `quickdesign` binary itself still ships via npm; the plugin keeps distribution lean by not bundling node binaries.
+
+If you already used Option A, you can keep it — the plugin install lives alongside `~/.claude/skills/quickdesign/` without conflict. For a clean switch: `rm -rf ~/.claude/skills/quickdesign` after the plugin is installed.
+
+Requires Node.js ≥ 18.17 either way.
 
 > **`init` does NOT run automatically after `npm install`.** That would break CI/scripted installs and silently mutate `~/.claude/skills/` without consent. You run it once, on purpose, the first time you use the CLI on a machine. After that, every `quickdesign …` call just works.
 
