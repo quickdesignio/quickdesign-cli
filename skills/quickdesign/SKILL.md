@@ -21,9 +21,32 @@ Do NOT use for: pure text generation, code edits, search — those have their ow
 
 These apply to every generation. Breaking any of them produces visible defects.
 
-0. **Default video model = `seedance-2.0-r2v` for ANY UGC / talking-avatar / promo / explainer / multi-scene work, regardless of duration or segment count.** Don't downgrade to `seedance-2.0-i2v` because the script is "short enough" — R2V handles 4-15s single-shot just as well as multi-segment, and going through R2V from the start preserves every primitive this skill depends on (`@Image1` references, multi-`--reference-image`, `--reference-audio` voice continuity). Switch off R2V only on **explicit user opt-in** ("use Sora 2") or if R2V is unavailable in the registry. See `models/seedance-2.0-r2v.md`.
+0. **Default video model = `seedance-2.0-r2v` for ANY UGC / talking-avatar / promo / explainer / multi-scene work, regardless of duration or segment count.** Don't downgrade to `seedance-2.0-i2v` because the script is "short enough" — R2V handles 4-15s single-shot just as well as multi-segment, and going through R2V from the start preserves every primitive this skill depends on (`@Image1` references, multi-`--reference-image`, `--reference-audio` voice continuity). Switch off R2V only on **explicit user opt-in** ("use Sora 2") or if R2V is unavailable in the registry.
 
-1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts, and pass EVERY relevant photo as a separate reference.** Both `nano-banana-2` (image edit) and Seedance 2.0 R2V (video) accept multiple `--reference-image` flags. If the user uploaded a product from two angles, pass both — describing the second one in prose is a regression. Don't re-describe the person, wardrobe, or product in words; that competes with the reference image and causes drift. See `references/multi-reference-pattern.md` and the per-model card under `models/`.
+   ⚠️ **The name "i2v" (image-to-video) is misleading.** R2V also accepts a single-image-to-video flow — just pass one `--reference-image`. Don't pick i2v because the task is "image-to-video as English". An agent reasoning chain like *"user wants to animate static images → image-to-video → therefore seedance-2.0-i2v"* is the silent regression this rule exists to prevent. Even when you're animating a single banana edit with no speech and no multi-ref needs, R2V is still the default — i2v adds nothing and forfeits the primitives if the next iteration of the task DOES need them.
+
+   See `models/seedance-2.0-r2v.md`.
+
+1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts, and pass EVERY relevant photo as a separate reference.** Both `nano-banana-2` (image edit) and Seedance 2.0 R2V (video) accept multiple `--reference-image` flags. If the user uploaded a product from two angles, pass both — describing the second one in prose is a regression. Don't re-describe the person, wardrobe, or product in words; that competes with the reference image and causes drift.
+
+   ❌ **Wrong** — verbose verbatim re-description of `@Image1`:
+   ```
+   Authentic UGC photo of the woman from the reference (long wavy brown
+   hair, natural glowy makeup, glossy peach-coral lips, gold hoop earrings,
+   pearl choker, soft smile), wearing the beige suede sneakers from the
+   second reference, in a cozy minimal bedroom...
+   ```
+   Banana already SEES her hair / makeup / lips / jewelry in `@Image1` and the sneaker color / silhouette / sole in `@Image2`. Re-describing them tells the model "ignore the references, paint from this prose" — competes with the visual anchor and causes drift.
+
+   ✅ **Right** — labels do the work, prose only describes what's NEW:
+   ```
+   Edit @Image1: change pose to iPhone mirror selfie. Add a white ribbed
+   tank top + oversized baggy jeans. Sneakers matching @Image2 visible at
+   the bottom of the frame. Keep face, hair, makeup, jewelry, and
+   lighting unchanged from @Image1.
+   ```
+
+   See `references/multi-reference-pattern.md` and the per-model card under `models/`.
 
 2. **Multi-segment voice continuity = `--reference-audio` from Seg 1's extracted audio.** Generate Seg 1 first → `ffmpeg -vn -acodec libmp3lame` extracts audio → pass that mp3 as `--reference-audio` to Segs 2..N. Without this, every segment picks a different voice. See `references/voice-continuity.md`.
 
@@ -40,7 +63,15 @@ These apply to every generation. Breaking any of them produces visible defects.
 
 7. **When avatar is supplied AND setting doesn't change, EDIT the avatar — don't regenerate.** Compose-style banana prompts ("Compose a vertical 9:16 UGC selfie frame...", "Generate a creator-selfie scene...") cause the model to render a fresh AI-look image inspired by the avatar — losing the source's lighting, grain, and lo-fi authenticity. The result feels synthetic instead of like a real creator's edited selfie. Use edit-style verbs (`Edit @Image1: add ...`, `Take @Image1 as-is and only change ...`, `Keep every pixel of @Image1 except [region]`), don't re-list scene tokens that the reference already shows, and strip quality-upgrade words ("photo-realistic", "studio quality", "8K") from the prompt — they trigger regen. See `references/avatar-edit-not-regenerate.md`.
 
-8. **For spoken UGC, never start generation without a script.** "UGC" / "talking-avatar" / "creator selfie" / "ad" all imply someone speaking on camera. If the user didn't supply quoted speech, you have two valid moves: (a) ask them for the script in one short message, OR (b) draft a 4-12s script that fits the brief, surface it inside the plan summary, then proceed. Generating UGC with a generic action prompt and no quoted speech produces silent video or model-babbled phonemes — wasted credits + a useless deliverable. The script is part of the plan summary, not separate from it. See `references/script-and-duration.md` for word-count → duration math.
+8. **For UGC video, surface the speech-or-silent choice — don't pick silently.** "UGC video" is ambiguous: it could be a spoken creator clip (script-driven, voice + lip-sync) OR a motion-only beat (OOTD reveal, b-roll, animated stills with text overlays in post). Both are legitimate creative formats. The agent must NOT pick one silently:
+
+   - **Strong signal toward SPOKEN** (just go): user wrote "talking-avatar", "creator says", "voiceover", "explainer", "ad with script", or supplied a script themselves. Build script → put in plan summary → generate with `generate_audio: true` and the quoted speech inline.
+   - **Strong signal toward SILENT** (just go): user wrote "OOTD reveal", "motion only", "no audio", "B-roll", "Pinterest aesthetic", or wants a static-image animation reel.
+   - **Ambiguous "UGC video" / "promo video" / "ad video"** — call `AskUserQuestion` with two options: spoken (with a draft 4-8 word hook) or silent + post-overlay text. Recommend whichever fits the user's brief better. Do NOT silently default.
+
+   When SPOKEN is selected: never start generation without quoted speech in the prompt. If the user didn't supply one, draft 4-12s of dialogue that fits the brief, surface it in the plan summary, then proceed. Generating with a generic action prompt and no quoted speech produces silent video or model-babbled phonemes — wasted credits.
+
+   See `references/script-and-duration.md` for word-count → duration math.
 
 ## Decision tree — which doc to open first
 
