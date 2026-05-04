@@ -41,7 +41,8 @@
   },
   "scripts": {
     "stamp-skill-version": "node -e \"require('fs').writeFileSync('skills/quickdesign/.version', require('./package.json').version + '\\n')\"",
-    "build": "npm run stamp-skill-version && tsc && chmod +x dist/bin.js",
+    "stamp-plugin-version": "node -e \"const fs=require('fs');const v=require('./package.json').version;const m=require('./.claude-plugin/plugin.json');m.version=v;fs.writeFileSync('.claude-plugin/plugin.json',JSON.stringify(m,null,2)+'\\n')\"",
+    "build": "npm run stamp-skill-version && npm run stamp-plugin-version && tsc && chmod +x dist/bin.js",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
