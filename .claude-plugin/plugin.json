@@ -1,6 +1,6 @@
 {
   "name": "quickdesign",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "AI media generation skill for the QuickDesign CLI. Seedance 2.0 R2V (universal default for UGC / talking-avatar / promo), Sora 2, Kling, Nano Banana 2 (multi-ref image edit), video upscale. Multi-segment voice continuity, multi-product reference composition, anatomy self-check, model-agnostic concepts + per-model reference cards.",
   "author": {
     "name": "QuickDesign",

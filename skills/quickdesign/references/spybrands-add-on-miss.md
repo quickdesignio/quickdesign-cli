@@ -43,20 +43,39 @@ Brand X isn't in the Spy Brands library yet. How should we proceed?
   (c) Skip — pick a different brand or abort.
 ```
 
-### Step 2 — resolve the Facebook page URL
+### Step 2 — resolve the Facebook page URL or ID
 
-The `quickdesign spy add` command needs ONE of:
-- Facebook page URL: `https://facebook.com/<slug>`, `fb.com/<slug>`, `m.facebook.com/...`
-- Meta Ad Library URL: `https://www.facebook.com/ads/library/?...&view_all_page_id=<id>`
-- Numeric page ID: `258418472728406`
+The `quickdesign spy add` command accepts ONE of (in order of preference):
+1. **Numeric page ID** — `258418472728406`. Most reliable; bypasses BFF's slug-resolve Playwright probe entirely.
+2. Facebook page URL — `https://facebook.com/<slug>`, `fb.com/<slug>`, `m.facebook.com/...`. BFF runs a Playwright Ad Library probe to resolve the slug to a numeric ID; this fails for ~10-20% of slugs (page renamed, geo-restricted, brand uses non-obvious URL handle).
+3. Meta Ad Library URL with `view_all_page_id=<id>` — **avoid for now**. The BFF's `extractPageId()` parser doesn't extract `view_all_page_id` from query strings cleanly; passing a full Ad Library URL has been observed to create garbage brand entries (the URL itself becomes the slug). If the user gives you an Ad Library URL, manually parse out the `view_all_page_id=...` value and pass JUST the numeric ID to the CLI.
 
-Three resolution strategies, in order:
+Four resolution strategies, in order. Move down the list when each step fails:
 
-**(a) Scrape the brand's homepage for the FB link** — usually the cheapest. Use `WebFetch` or the `firecrawl-scrape` skill on the brand's website (the user's request typically mentions a URL like `myflufie.com`). Look for `<a href="https://www.facebook.com/...">` in the page source / footer.
+**(a) Scrape the brand's homepage for the FB link** — usually the cheapest. Use `WebFetch` or the `firecrawl-scrape` skill on the brand's website (the user's request typically mentions a URL like `myflufie.com`). Look for `<a href="https://www.facebook.com/...">` in the page source / footer. Pass the discovered URL to `spy add`.
 
-**(b) Web search "<brand-name> facebook page"** — use `WebSearch`. Pick the result whose URL is `facebook.com/<slug>` and whose title matches the brand. Skip personal pages.
+**(b) Web search "<brand-name> facebook page"** — use `WebSearch`. Pick the result whose URL is `facebook.com/<slug>` and whose title matches the brand. Skip personal pages, fan pages, and pages clearly belonging to a different entity. Pass the URL to `spy add`.
 
-**(c) Ask the user for the FB URL** — when (a) and (b) fail or yield ambiguous results. One short prose question. Don't loop on this if the user doesn't know — fall back to "skip" path.
+**(c) If `spy add <slug-url>` returns 400 with `Could not resolve "..." to a numeric Facebook page ID`,** the slug-resolve Playwright probe gave up. **Don't keep retrying URL variants** — the brand's FB handle is unusual (e.g. `Bombas` resolved fine for nothing despite `facebook.com/bombas` being the actual URL on facebook.com itself; this happens). Pivot to (d) below.
+
+**(d) Ask the user for the numeric page ID** — most reliable fallback. One short prose question pointing them at Meta Ad Library, since copying a page ID from there takes them ~15 seconds:
+
+```
+Couldn't auto-resolve <brand>'s Facebook page from the slug. Could you grab
+the numeric page ID for me?
+
+  1. Open https://www.facebook.com/ads/library/
+  2. Search "<brand>" in the brand search field
+  3. Click the brand to open its ad library page
+  4. Copy the value of `view_all_page_id=` from the URL
+     (e.g. for `?...&view_all_page_id=155577444523958`, copy
+     `155577444523958`)
+  5. Paste it back to me
+```
+
+Then call `quickdesign spy add <numeric-id>` with whatever they paste. The numeric ID path skips Playwright entirely and goes straight to the Meta API.
+
+If the user doesn't know how / doesn't want to look it up, fall back to "skip" — don't loop. Tell them the brand can't be added in this turn and continue with the parts of the original task that don't depend on it.
 
 ### Step 3 — register the brand
 
@@ -86,6 +105,12 @@ The BFF doesn't validate that the FB page actually belongs to the brand the user
 ```
 
 If either the page name or the first ads obviously don't match what the user wanted, flag it immediately. There's no `spy remove` yet — misadds need manual cleanup via Supabase SQL Editor. The user should know now, not three operations later.
+
+**Special case — `ad_count: 0` on a successful add:** Two distinct causes:
+1. **Meta API genuinely has no active ads for this brand.** The brand legitimately doesn't run paid Meta ads (common for premium / editorial brands like Aimé Leon Dore). Brand row is fine; nothing to scrape.
+2. **Initial scrape silently failed or timed out.** The BFF's `fetchEnrichAndSaveBrandAds()` call inside add can return empty even when ads exist — most often a 504 on the Playwright fallback path.
+
+To distinguish: open `https://www.facebook.com/ads/library/?active_status=active&view_all_page_id=<page_id>` in a browser. If you see ads there but `ad_count: 0` was returned, it's case 2 — partial failure, the brand row is otherwise correct. There's no `quickdesign spy refresh-ads` subcommand yet to retry; flag this for the user as a known follow-up. If the Ad Library page itself is empty, it's case 1 — accept and move on.
 
 ### Step 5 — continue with the original task
 
