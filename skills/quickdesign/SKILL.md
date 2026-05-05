@@ -86,6 +86,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Final video too low-res | `models/topaz-video-upscale.md` (run after concat) |
 | Add captions to existing video | `references/auto-subtitle.md` |
 | Brand not in Spy Brands library / 0 search results | `references/spybrands-add-on-miss.md` |
+| User is on claude.ai (web) and asks about QuickDesign | `references/connecting-claude-ai-via-mcp.md` |
 
 **By job phase:**
 
@@ -166,6 +167,7 @@ references/                        ← model-agnostic concepts (read for princip
    multi-reference-pattern.md      ← @Image1/@Image2/@Image3 multi-ref usage
    avatar-edit-not-regenerate.md   ← edit-style verbs, don't compose-regen the avatar
    spybrands-add-on-miss.md        ← when `spy brands --search` returns 0: confirm + resolve FB page + `spy add`
+   connecting-claude-ai-via-mcp.md ← claude.ai (web) users: how to connect via MCP, what's available vs. CLI-only
    voice-continuity.md             ← --reference-audio across multi-segment
    no-music-no-subtitles.md        ← minimal music + subtitle suppression
    auto-subtitle.md                ← post-generation captions (real ASR, not model-burned)
