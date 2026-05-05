@@ -179,17 +179,29 @@ export function registerSpyCommands(program: Command): void {
     .description(
       'Register a brand into the Spy Brands library by Facebook page URL or ID. ' +
       'BFF resolves the page, dedup-checks, LLM-suggests a category, generates a ' +
-      'slug, inserts the row, and triggers an initial Meta Ad Library scrape (~10s).',
+      'slug, inserts the row, and triggers an initial Meta Ad Library scrape (~10s). ' +
+      'For bulk-add scripts, use --name / --website / --instagram to pre-fill metadata ' +
+      'when the Meta probe might come back empty (e.g. a brand with no active ads).',
     )
     .argument(
       '<facebook-input>',
-      'Facebook page URL (e.g. https://facebook.com/myflufie), Ad Library URL with view_all_page_id, or numeric page ID',
+      'Numeric page ID (most reliable, e.g. 155577444523958), Facebook page URL ' +
+      '(e.g. https://facebook.com/myflufie), or Ad Library URL with view_all_page_id',
     )
-    .option('--category <slug-or-uuid>', 'Override the LLM-suggested category. Pass a category UUID or label.')
+    .option('--name <name>', 'Override the brand name. Required when the Meta probe returns no ads (otherwise the BFF refuses to insert with no resolvable name).')
+    .option('--website <url>', 'Override the website URL. Falls back to the first ad\'s link caption if omitted; takes precedence when supplied.')
+    .option('--instagram <handle>', 'Set the Instagram handle on the brand row.')
+    .option('--category <slug-or-uuid>', 'Override the LLM-suggested category. Pass a category label (e.g. "apparel") or UUID.')
     .option('--human', 'Pretty-print the result instead of raw JSON')
     .action(async (
       facebookInput: string,
-      opts: { category?: string; human?: boolean },
+      opts: {
+        name?: string;
+        website?: string;
+        instagram?: string;
+        category?: string;
+        human?: boolean;
+      },
     ) => {
       try {
         process.stderr.write(
@@ -201,7 +213,13 @@ export function registerSpyCommands(program: Command): void {
           suggestedCategory?: string | null;
         }>('/api/spy-brands/admin/add-brand', {
           method: 'POST',
-          body: { facebook_input: facebookInput, category_id: opts.category },
+          body: {
+            facebook_input: facebookInput,
+            category_id: opts.category,
+            name: opts.name,
+            website_url: opts.website,
+            instagram_id: opts.instagram,
+          },
         });
         if (opts.human) {
           const b = res.data;
