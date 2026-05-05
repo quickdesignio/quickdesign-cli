@@ -173,4 +173,69 @@ export function registerSpyCommands(program: Command): void {
         emitJson(res.data ?? []);
       } catch (err) { fail(err); }
     });
+
+  spy
+    .command('add')
+    .description(
+      'Register a brand into the Spy Brands library by Facebook page URL or ID. ' +
+      'BFF resolves the page, dedup-checks, LLM-suggests a category, generates a ' +
+      'slug, inserts the row, and triggers an initial Meta Ad Library scrape (~10s).',
+    )
+    .argument(
+      '<facebook-input>',
+      'Facebook page URL (e.g. https://facebook.com/myflufie), Ad Library URL with view_all_page_id, or numeric page ID',
+    )
+    .option('--category <slug-or-uuid>', 'Override the LLM-suggested category. Pass a category UUID or label.')
+    .option('--human', 'Pretty-print the result instead of raw JSON')
+    .action(async (
+      facebookInput: string,
+      opts: { category?: string; human?: boolean },
+    ) => {
+      try {
+        process.stderr.write(
+          'Registering brand and fetching first ads (~10s — Meta Ad Library scrape blocks the response)…\n',
+        );
+        const res = await request<{
+          success: boolean;
+          data: BrandRow & { ad_count?: number };
+          suggestedCategory?: string | null;
+        }>('/api/spy-brands/admin/add-brand', {
+          method: 'POST',
+          body: { facebook_input: facebookInput, category_id: opts.category },
+        });
+        if (opts.human) {
+          const b = res.data;
+          const lines = [
+            `${kleur.bold(b.name)}  ${kleur.dim(b.id)}`,
+            `  slug      : ${b.slug}`,
+            `  ad_count  : ${b.ad_count ?? 0}`,
+            `  website   : ${b.website_url || '(none)'}`,
+            res.suggestedCategory ? `  category  : ${res.suggestedCategory} (LLM-suggested)` : null,
+            '',
+            `Next step: ${kleur.cyan(`quickdesign spy brand-ads ${b.id} --status active --human`)}`,
+            '',
+          ].filter(Boolean) as string[];
+          process.stdout.write(lines.join('\n'));
+        } else {
+          emitJson(res);
+        }
+      } catch (err) {
+        // The BFF returns 409 when the brand is already indexed and includes
+        // the existing brandId in the body — surface it so the caller can
+        // short-circuit to `spy brand-ads <existingId>` without re-asking.
+        const statusCode = (err as { status?: number })?.status;
+        const body = (err as { body?: unknown })?.body as
+          | { error?: string; brandId?: string }
+          | undefined;
+        if (statusCode === 409 && body?.brandId) {
+          process.stderr.write(
+            `Brand already exists (id=${body.brandId}). ` +
+              `Run \`quickdesign spy brand-ads ${body.brandId}\` to see its ads.\n`,
+          );
+          emitJson({ success: false, alreadyExists: true, brandId: body.brandId, error: body.error });
+          process.exit(0);
+        }
+        fail(err);
+      }
+    });
 }
