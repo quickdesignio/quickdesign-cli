@@ -107,6 +107,18 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
 
    `--generate-audio` is on by default. The "in the same exact setting throughout" pin handles location continuity. The two short audio/visual suppression lines stay minimal — don't enumerate ambient sounds you want. See `../references/no-music-no-subtitles.md`.
 
+   **🛑 Seg-1 visual-approval gate (HARD STOP — applies to multi-segment plans).** After Seg 1 renders, do NOT proceed to audio extraction or Segs 2..N. Voice continuity locks Seg 1's audio into every subsequent segment, so a wrong voice / wrong avatar identity / mispronounced word / off-brand framing in Seg 1 multiplies the wasted spend by N. Single-segment plans skip this gate.
+
+   The flow:
+   1. Surface Seg 1's video URL in the chat (the `--wait -o <seg1.mp4>` step prints the public URL).
+   2. Call `AskUserQuestion` with options:
+      - **Looks right — render Segs 2..N** *(Recommended if Seg 1 is clean)*
+      - **Re-render Seg 1** (tweak prompt, reference, duration, or quoted speech)
+      - **Cancel the multi-segment plan**
+   3. Only on "Looks right" → continue to step 5 (audio extract) and step 6 (parallel fan-out).
+
+   This gate does NOT compress in auto mode. The Seg 1 → Seg N spend multiplier is the same regardless of how patient the user is. See SKILL.md cardinal rule #9.
+
 5. **Extract Segment 1's audio** for voice continuity:
    ```bash
    quickdesign video extract-audio <seg1.mp4> -o <seg1-audio.mp3>

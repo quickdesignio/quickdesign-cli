@@ -73,6 +73,53 @@ These apply to every generation. Breaking any of them produces visible defects.
 
    See `references/script-and-duration.md` for word-count → duration math.
 
+9. **Multi-segment plans STOP after Seg 1 for visual approval — don't fan-out Segs 2..N until the user confirms Seg 1 came out right.** Voice continuity locks Seg 1's audio into every subsequent segment via `--reference-audio`. If Seg 1 has the wrong voice, wrong avatar identity, mispronounced word, or off-brand framing, every parallel Seg 2..N inherits that defect. A 4-segment plan at ~250cr/segment = ~1000cr; auto-fanning out a broken Seg 1 burns ~750cr that didn't need to be spent.
+
+   The flow is:
+   1. Plan summary → user approves (Rule 5).
+   2. Render Seg 1 only.
+   3. **Surface Seg 1's video URL in the chat** + call `AskUserQuestion` with options:
+      - **Looks good — render Segs 2..N** *(Recommended if Seg 1 is clean)*
+      - **Re-render Seg 1** (adjust prompt / reference / duration)
+      - **Cancel the multi-segment plan**
+   4. Only on "Looks good" → fan out Segs 2..N in parallel with the extracted audio.
+
+   This gate does NOT compress in auto mode. The Seg 1 → Seg N spend multiplier is the same regardless of how patient the user is. See `pipelines/ugc-video.md` for the canonical multi-segment flow.
+
+10. **Camera stays put. Don't change angle / framing unless the user explicitly asks for it.** Documentary-style UGC (street interview, kitchen demo, founder POV, customer testimonial, vlog-style) reads as **one continuous camera point**, not a multi-angle cut sequence. Default to: same framing (e.g., mid-shot eye-level), same distance, avatar in roughly the same position across every segment. The "transition" between segments is the avatar's gesture / line / micro-expression — not an angle cut.
+
+    ❌ **Wrong defaults** (silent regression — produces a "shot-by-Director-of-Photography" feel that destroys UGC authenticity):
+    - Seg 1 mid-shot → Seg 2 over-shoulder → Seg 3 close-up
+    - "Push in slowly on the speaker"
+    - "Cut to product close-up on the punchline"
+    - Each `nano-banana-2` segment ref using a different angle of the same person
+
+    ✅ **Right default** (UGC authenticity preserved):
+    - Same source frame or near-identical angle/lighting across every segment. Only the avatar's hand position, gaze, or expression changes between segments.
+
+    Only switch to multi-angle when the user explicitly asks: "alternate angles each segment", "cinematic cut to close-up at the hook", "include an over-shoulder shot of the product", "studio-style multi-cam UGC". When unsure, ask via `AskUserQuestion`: *Fixed camera (recommended for documentary UGC) / Multi-angle (cinematic cuts).*
+
+    See `references/first-frame-not-camera-motion.md` for the related rule about static framing vs. described camera motion.
+
+11. **Audit ALL the references the user supplied — product alone is not enough for UGC.** When the brief is "make a UGC video for this product" and the user supplied ONLY a product photo, STOP before generating. Seedance R2V needs anchored references for: the **product**, the **avatar / creator** (face, build, vibe), and the **scene / location** (kitchen, bathroom, gym, sidewalk). Prose can describe the product in detail, but if you describe the avatar in prose only, Seedance will hallucinate a generic-looking person — usually a synthetic-feeling Caucasian woman in her 20s — and the scene will read as stock B-roll, not the brand's world. The result fails the "doesn't look made" bar.
+
+    Before generation, audit the supplied media:
+    - **Product image** — almost always present. Pass as `--reference-image` with prompt label `@Image1`.
+    - **Avatar / creator image** — if user provided one, pass it as a separate `--reference-image` and label `@Image2`. If user didn't provide one, **call `AskUserQuestion`** before generating: *Upload a creator headshot / Pick from QuickDesign avatar library (5,000+ portraits) / Proceed with prose-described creator (synthetic-look risk).* Recommend "Pick from library" if the user is brief-only.
+    - **Scene / location image** — if the user is filming a "kitchen scene", "bathroom mirror selfie", "office desk POV", etc., ask whether they have a reference photo of the actual room. Pass as `@Image3` if supplied.
+
+    The Seedance R2V call should look like:
+    ```bash
+    quickdesign video generate --provider seedance \
+      --reference-image product.jpg \
+      --reference-image avatar.jpg \
+      --reference-image scene.jpg \
+      --aspect-ratio 9:16 --duration 12 --resolution 1080p \
+      -p '@Image2 in @Image3, holds @Image1 toward camera. She says: "..." No music score. No subtitles or on-screen text.' \
+      -o seg1.mp4 --wait
+    ```
+    `@Image1`/`@Image2`/`@Image3` labels do the heavy lifting; prose only describes the action and quoted speech. See `references/multi-reference-pattern.md`.
+
 ## Decision tree — which doc to open first
 
 **By job type:**

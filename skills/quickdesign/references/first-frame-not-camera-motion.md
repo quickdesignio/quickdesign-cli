@@ -48,12 +48,18 @@ The distinction: action lines describe what the subject does (Seedance respects 
 
 ## How to apply
 
-When planning a 2/3-segment UGC video, the framing progression for prompts looks like:
+**Default (documentary / casual UGC): all segments share the same framing.** Per SKILL.md cardinal rule #10, don't change camera angle / distance between segments unless the user explicitly asks. A street interview / kitchen demo / founder POV reads as one camera point — the cut is the gesture or line, not the angle. The "framing progression" example below is for the **explicit opt-in case** ("cinematic angle changes", "alternate angles each segment", "cut to close-up at the punchline"). Don't apply it silently.
 
 ```
+─── Default (DO THIS by default) ────────────────────
+Seg 1 first frame: "Medium shot framing chest-up, eye-level"
+Seg 2 first frame: "Medium shot framing chest-up, eye-level"  (same as Seg 1)
+Seg 3 first frame: "Medium shot framing chest-up, eye-level"  (same as Seg 1)
+
+─── Cinematic progression (ONLY on explicit request) ─
 Seg 1 first frame: "Wide medium shot framing chest-up, environment visible"
 Seg 2 first frame: "Medium close-up framing shoulders to top of head"
 Seg 3 first frame: "Close-up framing face only, eyes and mouth dominant"
 ```
 
-Each segment then continues with: identity anchor (`@Image1`) + scene/setting (with the "in the same exact setting" pin if location continuity matters) + action line + quoted speech + lighting/format. **No camera-motion verbs.**
+Each segment then continues with: identity anchor (`@Image1`) + scene/setting (with the "in the same exact setting" pin if location continuity matters) + action line + quoted speech + lighting/format. **No camera-motion verbs** in either case.
