@@ -124,10 +124,10 @@ export function registerImageCommands(program: Command): void {
 
         const spin = ora({ text: `Waiting for image (${requestId})…`, stream: process.stderr }).start();
         const result = await pollUntilDone<ResultResponse>(async () => {
-          const s = await request<StatusResponse>(`/api/image-generation/status/${requestId}`, { auth: false });
+          const s = await request<StatusResponse>(`/api/image-generation/status/${requestId}`);
           if (s.status === 'failed') return { done: false, error: s.error ?? 'Generation failed' };
           if (s.status !== 'completed') return { done: false };
-          const r = await request<ResultResponse>(`/api/image-generation/result/${requestId}`, { auth: false });
+          const r = await request<ResultResponse>(`/api/image-generation/result/${requestId}`);
           return { done: true, result: r };
         }, { intervalMs: 2000, timeoutMs: opts.timeout });
         spin.succeed('Image ready');
@@ -157,7 +157,7 @@ export function registerImageCommands(program: Command): void {
     .argument('<requestId>', 'Request ID returned by `generate`')
     .action(async (requestId: string) => {
       try {
-        const s = await request<StatusResponse>(`/api/image-generation/status/${requestId}`, { auth: false });
+        const s = await request<StatusResponse>(`/api/image-generation/status/${requestId}`);
         emitJson(s);
       } catch (err) { fail(err); }
     });
@@ -169,7 +169,7 @@ export function registerImageCommands(program: Command): void {
     .option('-o, --output <path>', 'Save the image to this path')
     .action(async (requestId: string, opts: { output?: string }) => {
       try {
-        const r = await request<ResultResponse>(`/api/image-generation/result/${requestId}`, { auth: false });
+        const r = await request<ResultResponse>(`/api/image-generation/result/${requestId}`);
         const url = r.imageUrl ?? r.images?.[0]?.url ?? r.images?.[0]?.imageUrl;
         if (opts.output && url) {
           await downloadTo(url, opts.output);
@@ -190,13 +190,13 @@ export function registerImageCommands(program: Command): void {
       try {
         const spin = ora({ text: `Waiting for image (${requestId})…`, stream: process.stderr }).start();
         const result = await pollUntilDone<ResultResponse>(async () => {
-          const s = await request<StatusResponse>(`/api/image-generation/status/${requestId}`, { auth: false });
+          const s = await request<StatusResponse>(`/api/image-generation/status/${requestId}`);
           if (s.status === 'failed') return { done: false, error: s.error ?? 'Generation failed' };
           if (s.status !== 'completed') {
             spin.text = `Waiting for image (${requestId})… ${s.status}${s.progress != null ? ` · ${s.progress}%` : ''}`;
             return { done: false };
           }
-          const r = await request<ResultResponse>(`/api/image-generation/result/${requestId}`, { auth: false });
+          const r = await request<ResultResponse>(`/api/image-generation/result/${requestId}`);
           return { done: true, result: r };
         }, { intervalMs: opts.interval, timeoutMs: opts.timeout });
         spin.succeed('Image ready');
