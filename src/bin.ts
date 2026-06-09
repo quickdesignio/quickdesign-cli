@@ -16,6 +16,7 @@ import { registerVideoCommands } from './commands/video.js';
 import { registerBrandCommands } from './commands/brand.js';
 import { registerAdCreatorCommands } from './commands/ad-creator.js';
 import { registerDesignCommands } from './commands/design.js';
+import { registerMetaCommands } from './commands/meta.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerCostCommand } from './commands/cost.js';
 import pkg from '../package.json' with { type: 'json' };
@@ -85,6 +86,10 @@ Examples
   $ quickdesign brand dna https://kizik.com
   $ quickdesign ad-creator advantage-plus --product-url https://kizik.com/products/bowen --wait -o ./ads
   $ quickdesign design list --limit 10
+  $ quickdesign meta accounts --human
+  $ quickdesign meta radar --account act_123 --compute --human
+  $ quickdesign meta publish --account act_123 --page 456 --name "Summer Sale" \\
+      --objective OUTCOME_SALES --budget 50 --design 1234 --design 5678 --wait --human
 
 Environment
   QUICKDESIGN_BASE_URL             Override API base (default: https://app.quickdesign.io)
@@ -100,6 +105,7 @@ registerVideoCommands(program);
 registerBrandCommands(program);
 registerAdCreatorCommands(program);
 registerDesignCommands(program);
+registerMetaCommands(program);
 registerInitCommand(program);
 registerCostCommand(program);
 
