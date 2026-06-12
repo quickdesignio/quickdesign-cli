@@ -23,6 +23,13 @@
  *   - We bind to 127.0.0.1 only (never 0.0.0.0) — token must not leak on LAN.
  *   - We enforce a strict state nonce on the browser path to block a malicious
  *     site from pushing tokens to a stale CLI server.
+ *   - POST-only. Tokens must never travel in a query string (browser history /
+ *     log leakage), so there is no GET fallback — the manual path is the stdin
+ *     paste below.
+ *   - CORS is pinned to the origin of `resolveBaseUrl()` (the SPA that the CLI
+ *     itself opened). If the SPA ever moves to a different domain than the
+ *     configured base URL, the browser flow fails loudly at preflight — the
+ *     stdin paste fallback keeps working.
  *   - Stdin paste is only enabled when stdin is a TTY (skipped in CI / piped).
  *   - PNA: Chrome 130+ blocks HTTPS→localhost without
  *     `Access-Control-Allow-Private-Network: true` on the preflight. We echo
@@ -55,11 +62,10 @@ h1{font-weight:600;font-size:1.25rem;margin:0 0 .25rem}p{color:#666;margin:0}
 <script>setTimeout(()=>window.close(),800);</script>
 </body></html>`;
 
-function corsHeaders(req: IncomingMessage): Record<string, string> {
-  const origin = req.headers.origin ?? '*';
+function corsHeaders(req: IncomingMessage, allowedOrigin: string): Record<string, string> {
   const headers: Record<string, string> = {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '600',
   };
@@ -82,6 +88,9 @@ export async function browserLogin(opts: { timeoutMs?: number } = {}): Promise<O
   const timeout = opts.timeoutMs ?? 300_000;
   const state = randomBytes(16).toString('hex');
   const baseUrl = resolveBaseUrl().replace(/\/$/, '');
+  // The only page that legitimately POSTs to this server is the /cli-auth page
+  // we open ourselves, so its origin is by construction the base URL's origin.
+  const allowedOrigin = new URL(baseUrl).origin;
 
   return new Promise<OauthResult>((resolve, reject) => {
     let done = false;
@@ -119,7 +128,7 @@ export async function browserLogin(opts: { timeoutMs?: number } = {}): Promise<O
     // ── HTTP server (browser path) ──────────────────────────────────────────
     server = createServer((req, res) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
-      const cors = corsHeaders(req);
+      const cors = corsHeaders(req, allowedOrigin);
 
       if (req.method === 'OPTIONS') {
         res.writeHead(204, cors);
@@ -163,21 +172,15 @@ export async function browserLogin(opts: { timeoutMs?: number } = {}): Promise<O
         setTimeout(() => finish({ token, refreshToken, email, userId }), 50);
       };
 
-      if (req.method === 'GET') {
-        handle({
-          token: url.searchParams.get('token') ?? undefined,
-          refreshToken:
-            url.searchParams.get('refreshToken')
-            ?? url.searchParams.get('refresh_token')
-            ?? undefined,
-          state: url.searchParams.get('state') ?? undefined,
-          email: url.searchParams.get('email') ?? undefined,
-          userId: url.searchParams.get('userId') ?? undefined,
-        });
-        return;
-      }
-
       if (req.method === 'POST') {
+        // Defense-in-depth: the CORS preflight already pins the origin, but a
+        // non-browser client can skip preflight — reject mismatched origins
+        // outright. (Origin-less requests, e.g. curl, are still gated by the
+        // state nonce.)
+        if (req.headers.origin && req.headers.origin !== allowedOrigin) {
+          respondError(res, cors, 403, 'origin not allowed');
+          return;
+        }
         const chunks: Buffer[] = [];
         req.on('data', (c: Buffer) => chunks.push(c));
         req.on('end', () => {
