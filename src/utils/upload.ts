@@ -66,7 +66,13 @@ export async function uploadLocalFile(localPath: string): Promise<string> {
   const anonKey = resolveSupabaseAnonKey();
   if (anonKey) headers.apikey = anonKey;
 
-  const res = await fetch(endpoint, { method: 'POST', headers, body: form });
+  // 5 min budget — reference videos can be large.
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: form,
+    signal: AbortSignal.timeout(300_000),
+  });
   const text = await res.text();
   let parsed: { success?: boolean; publicUrl?: string; error?: string } = {};
   try {

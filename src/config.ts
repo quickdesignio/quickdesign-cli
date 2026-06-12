@@ -230,6 +230,10 @@ export async function refreshAccessToken(): Promise<string> {
 
     const base = resolveSupabaseUrl().replace(/\/$/, '');
     const url = `${base}/auth/v1/token?grant_type=refresh_token`;
+    // 30s cap: this fetch runs while holding the cross-process refresh lock —
+    // a hung request would wedge every quickdesign process on the machine.
+    // Note 30s exceeds the lock's 15s staleMs, so a slow-but-alive refresh can
+    // have its lock stolen (pre-existing window, unchanged).
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -238,6 +242,7 @@ export async function refreshAccessToken(): Promise<string> {
         Authorization: `Bearer ${anonKey}`,
       },
       body: JSON.stringify({ refresh_token: cfg.refreshToken }),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) {

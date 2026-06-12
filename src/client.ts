@@ -27,6 +27,19 @@ export interface RequestOptions {
   raw?: boolean;
 }
 
+/** Default overall budget for JSON request/response round trips. */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
+
+/**
+ * Caller-supplied signal wins; otherwise apply a default timeout so a hung
+ * server can never wedge the CLI forever. Note for future `raw: true` callers:
+ * the raw Response shares this 120s budget — pass your own signal when
+ * streaming large bodies.
+ */
+function effectiveSignal(signal?: AbortSignal, ms = DEFAULT_REQUEST_TIMEOUT_MS): AbortSignal {
+  return signal ?? AbortSignal.timeout(ms);
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -95,7 +108,7 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
     method: opts.method ?? (body ? 'POST' : 'GET'),
     headers,
     body,
-    signal: opts.signal,
+    signal: effectiveSignal(opts.signal),
   });
 
   if (opts.raw) {
@@ -161,12 +174,29 @@ export async function* streamSse<T = unknown>(
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body ?? {}),
-    signal: opts.signal,
-  });
+  // Connect-timeout only: abort if headers don't arrive within 30s, but once
+  // the stream is open let it run as long as it likes (brand-dna streams for
+  // minutes). The caller's signal keeps propagating for the whole stream.
+  const controller = new AbortController();
+  const connectTimer = setTimeout(
+    () => controller.abort(new Error('SSE connect timeout (30s)')),
+    30_000,
+  );
+  if (opts.signal) {
+    opts.signal.addEventListener('abort', () => controller.abort(opts.signal!.reason), { once: true });
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body ?? {}),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(connectTimer);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -253,7 +283,7 @@ export async function requestSupabase<T = unknown>(
     method: opts.method ?? (body ? 'POST' : 'GET'),
     headers,
     body,
-    signal: opts.signal,
+    signal: effectiveSignal(opts.signal),
   });
 
   const text = await res.text();
