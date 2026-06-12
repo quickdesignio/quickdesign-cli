@@ -43,7 +43,6 @@ export function registerSpyCommands(program: Command): void {
       try {
         const res = await request<{ data: BrandRow[] }>('/api/spy-brands/brands', {
           query: { search: opts.search, limit: opts.limit },
-          auth: false,
         });
         const rows = (res.data ?? []).slice(0, opts.limit);
         if (opts.human) {
@@ -63,7 +62,7 @@ export function registerSpyCommands(program: Command): void {
     .argument('<brandId>', 'Brand UUID')
     .action(async (brandId: string) => {
       try {
-        const res = await request<{ data: BrandRow }>(`/api/spy-brands/brand/${encodeURIComponent(brandId)}`, { auth: false });
+        const res = await request<{ data: BrandRow }>(`/api/spy-brands/brand/${encodeURIComponent(brandId)}`);
         emitJson(res.data ?? res);
       } catch (err) { fail(err); }
     });
@@ -85,7 +84,6 @@ export function registerSpyCommands(program: Command): void {
         const res = await request<{ data: AdRow[]; totalCount?: number; mediaMix?: unknown }>(
           `/api/spy-brands/brand/${encodeURIComponent(brandId)}/ads`,
           {
-            auth: false,
             query: {
               status: opts.status,
               sort: opts.sort,
@@ -119,7 +117,6 @@ export function registerSpyCommands(program: Command): void {
     .action(async (opts: { limit?: number; offset?: number; categoryId?: string; status?: string }) => {
       try {
         const res = await request<{ data: AdRow[] }>('/api/spy-brands/best-ads', {
-          auth: false,
           query: {
             limit: opts.limit,
             offset: opts.offset,
@@ -139,7 +136,6 @@ export function registerSpyCommands(program: Command): void {
     .action(async (query: string, opts: { limit?: number }) => {
       try {
         const res = await request<{ data: BrandRow[] }>('/api/spy-brands/brands', {
-          auth: false,
           query: { search: query, limit: opts.limit },
         });
         emitJson(res.data ?? []);
