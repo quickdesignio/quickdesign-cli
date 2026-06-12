@@ -12,6 +12,7 @@ import {
   resolveSupabaseAnonKey,
 } from './config.js';
 import { parseSse, type SseFrame } from './utils/sse.js';
+import { versionHeaders } from './version.js';
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -69,6 +70,7 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
   const url = buildUrl(path, opts.query);
   const headers: Record<string, string> = {
     Accept: 'application/json',
+    ...versionHeaders(),
     ...(opts.headers ?? {}),
   };
 
@@ -155,6 +157,7 @@ export async function* streamSse<T = unknown>(
   const headers: Record<string, string> = {
     Accept: 'text/event-stream',
     'Content-Type': 'application/json',
+    ...versionHeaders(),
     ...(opts.headers ?? {}),
   };
 
@@ -246,6 +249,7 @@ export async function requestSupabase<T = unknown>(
   const headers: Record<string, string> = {
     Accept: 'application/json',
     apikey: anonKey,
+    ...versionHeaders(),
     ...(opts.headers ?? {}),
   };
 

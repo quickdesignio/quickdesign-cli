@@ -140,9 +140,9 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `QUICKDESIGN_BASE_URL`          | Override API base URL (default `https://app.quickdesign.io`)                                        |
 | `QUICKDESIGN_TOKEN`             | Override the stored token (takes precedence over `auth.json`)                                       |
 | `QUICKDESIGN_SUPABASE_URL`      | Override Supabase REST base (default: prod project). Used only by `design` subcommands.             |
-| `QUICKDESIGN_SUPABASE_ANON_KEY` | Supabase anon key. **Required** for `design` subcommands (PostgREST-direct; RLS scopes to user).    |
+| `QUICKDESIGN_SUPABASE_ANON_KEY` | Supabase API key — accepts both the legacy anon JWT and the new `sb_publishable_...` key. Used by `design` subcommands (PostgREST-direct; RLS scopes to user) and token refresh. A prod default ships in the binary; override here or via `quickdesign auth config set supabase_anon_key <key>` (e.g. after a key rotation). |
 
-## Commands (v0.3)
+## Commands
 
 ### `init` — bootstrap
 
@@ -228,6 +228,23 @@ PostgREST-direct (user JWT + RLS). Requires `QUICKDESIGN_SUPABASE_ANON_KEY`.
 | `get <id>` | Full row |
 | `delete <id>` | Soft-delete (sets `isArchived = true`) |
 | `download <id> -o <path>` | Save the design's image or video to disk |
+
+### `meta` — Deploy to Meta + analytics
+
+| Command | Notes |
+| --- | --- |
+| `accounts` / `pages` / `pixels` | Connected ad accounts, FB pages, pixels |
+| `campaigns [--account]` / `adsets` | Campaign / ad-set listing |
+| `insights` / `report` / `radar` | Performance analytics (radar: `--compute` for fresh grades) |
+| `publish --account … --page … --design … [--wait]` | Publish designs as PAUSED Meta ads |
+| `publish-status <jobId>` | Poll a publish job |
+| `settings` | Stored Meta account settings |
+
+### `cost` — credit pricing
+
+| Command | Notes |
+| --- | --- |
+| `cost [slug] [--category <c>] [-d <sec>] [-r <res>] [--num <n>] [--json]` | Model pricing from the live registry; with a slug + params computes the exact credit cost |
 
 ## Long-running jobs
 

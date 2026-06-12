@@ -13,6 +13,7 @@ import {
   resolveSupabaseUrl,
   resolveSupabaseAnonKey,
 } from '../config.js';
+import { versionHeaders } from '../version.js';
 
 const CONTENT_TYPE_BY_EXT: Record<string, string> = {
   webp: 'image/webp',
@@ -62,7 +63,10 @@ export async function uploadLocalFile(localPath: string): Promise<string> {
 
   const base = resolveSupabaseUrl().replace(/\/$/, '');
   const endpoint = `${base}/functions/v1/upload-to-r2`;
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    ...versionHeaders(),
+  };
   const anonKey = resolveSupabaseAnonKey();
   if (anonKey) headers.apikey = anonKey;
 

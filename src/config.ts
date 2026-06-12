@@ -24,6 +24,7 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { versionHeaders } from './version.js';
 
 export const DEFAULT_BASE_URL = 'https://app.quickdesign.io';
 
@@ -40,6 +41,15 @@ export const DEFAULT_SUPABASE_URL = 'https://my.quickdesign.io';
  * privileges. Keeps `design` subcommands and the refresh-token flow working
  * out of the box without making the user run `quickdesign auth config set
  * supabase_anon_key …`. Env override still wins.
+ *
+ * ROTATION NOTE: this is the legacy HS256 anon JWT. A Supabase key rotation
+ * is planned; when the legacy keys are revoked this default dies in every
+ * published CLI version. The resolver below is shape-agnostic (env > config >
+ * this fallback), so the new `sb_publishable_...` key works without a code
+ * change — users on old versions self-rescue via
+ * `QUICKDESIGN_SUPABASE_ANON_KEY=<key>` or
+ * `quickdesign auth config set supabase_anon_key <key>`. A new release must
+ * swap this literal at rotation time.
  */
 export const DEFAULT_SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXhpanptcnl6ZXB0dWx5d3pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyMzIzNDksImV4cCI6MjA2MDgwODM0OX0.ChUrNv7wNB5sFxR34YaUZ5XLcQtcMTTCq9AwKP0mFuU';
@@ -240,6 +250,7 @@ export async function refreshAccessToken(): Promise<string> {
         'Content-Type': 'application/json',
         apikey: anonKey,
         Authorization: `Bearer ${anonKey}`,
+        ...versionHeaders(),
       },
       body: JSON.stringify({ refresh_token: cfg.refreshToken }),
       signal: AbortSignal.timeout(30_000),
