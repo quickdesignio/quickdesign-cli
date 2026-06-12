@@ -6,7 +6,7 @@
  * subcommand can be independently edited / tested.
  */
 import { Command } from 'commander';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
 import { registerAuthCommands } from './commands/auth.js';
@@ -52,6 +52,40 @@ function checkSkillStaleness(currentVersion: string): void {
   } catch {
     // Skill not installed yet, .version missing (older install), or any IO
     // error. Never block the CLI on this — silent return is fine.
+  }
+}
+
+/**
+ * Duplicate-skill check. Claude Code loads EVERY directory under
+ * ~/.claude/skills as a skill, keyed by the dir name but triggered by the
+ * frontmatter description. A manual backup like `quickdesign.bak.<ts>` whose
+ * SKILL.md still says `name: quickdesign` therefore shows up as a second,
+ * stale quickdesign skill that sessions can wrongly pick. Warn (one stderr
+ * line), never delete — same loud-but-non-blocking policy as the staleness
+ * check above.
+ */
+function checkDuplicateSkills(): void {
+  try {
+    const skillsRoot = path.join(homedir(), '.claude', 'skills');
+    for (const entry of readdirSync(skillsRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === 'quickdesign' || !entry.name.startsWith('quickdesign')) continue;
+      let head = '';
+      try {
+        head = readFileSync(path.join(skillsRoot, entry.name, 'SKILL.md'), 'utf-8').slice(0, 500);
+      } catch {
+        continue; // no SKILL.md → not loaded as a skill
+      }
+      if (/^name:\s*quickdesign\s*$/m.test(head)) {
+        process.stderr.write(
+          `note: duplicate quickdesign skill at ~/.claude/skills/${entry.name} — ` +
+            `Claude Code loads it as a second, stale skill. Remove it: ` +
+            `rm -rf ~/.claude/skills/${entry.name}\n`,
+        );
+      }
+    }
+  } catch {
+    // Skills dir missing or unreadable — nothing to warn about.
   }
 }
 
@@ -112,6 +146,7 @@ registerInitCommand(program);
 registerCostCommand(program);
 
 checkSkillStaleness((pkg as { version: string }).version ?? '0.0.0');
+checkDuplicateSkills();
 
 program.parseAsync(process.argv).catch((err: Error) => {
   process.stderr.write(`error: ${err.message}\n`);
