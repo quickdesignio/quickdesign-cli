@@ -14,8 +14,19 @@ then retry. There is no CLI flow for this — it's an app-side OAuth.
 
 `meta publish` creates the campaign, ad set and every ad with
 **status=PAUSED** on Meta. Nothing delivers and no budget is spent until the
-user activates the campaign in Meta Ads Manager. Always tell the user this
-after publishing — it's reassurance, and it's also a required manual step.
+campaign is activated. Always tell the user this after publishing.
+
+Activation is possible from the CLI (`meta campaign-status --status active`)
+but it is the one command here that SPENDS MONEY. Rules:
+
+- Never activate a campaign the user did not explicitly name in this
+  conversation. "Publish these" is NOT permission to activate.
+- Before activating, state the campaign name and its budget, and get an
+  explicit yes.
+- `--status paused` is the safe, reversible answer to "turn it off", "stop
+  it", "pause the spend".
+- `--status archived` is effectively one-way — Meta will not put an archived
+  campaign back into delivery. Only on an explicit "archive/retire" request.
 
 ## The flow
 
@@ -48,7 +59,15 @@ quickdesign meta publish … --designs-json ./ads.json
 
 # 4. Track (also: --wait above does this inline)
 quickdesign meta publish-status <jobId> --watch --human
+
+# 5. Turn delivery on / off (CAMPAIGN level; ad sets and ads keep their own status)
+quickdesign meta campaign-status --account act_X --campaign <campaignId> --status paused --human
+quickdesign meta campaign-status --account act_X --campaign <campaignId> --status active --yes --human
 ```
+
+`campaign-status` prompts for confirmation on `--status active` when stdin is
+a TTY; non-interactive callers (agents, scripts, CI) must pass `--yes`, which
+the agent should only do after the user has confirmed in conversation.
 
 Job is terminal when `completed_tasks + failed_tasks === total_tasks`.
 Per-task statuses: `pending → uploading_media → creating_adset → creating_ad →

@@ -21,3 +21,25 @@ export function note(msg: string): void {
 export function banner(title: string, detail?: string): void {
   process.stderr.write(`\n${kleur.bold().cyan(title)}${detail ? `  ${kleur.dim(detail)}` : ''}\n`);
 }
+
+/**
+ * Yes/no prompt for the few actions that spend money (currently: activating a
+ * Meta campaign). The prompt goes to stderr so `--json` stdout stays
+ * parseable. Only `y` / `yes` counts as yes — anything else, including EOF,
+ * is a no.
+ *
+ * Callers decide what to do when there is no TTY (pass `--yes` or refuse);
+ * this helper does not guess.
+ */
+export async function confirm(question: string): Promise<boolean> {
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const answer = await rl.question(question);
+    return /^y(es)?$/i.test(answer.trim());
+  } catch {
+    return false;
+  } finally {
+    rl.close();
+  }
+}

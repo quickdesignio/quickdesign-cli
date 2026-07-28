@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import kleur from 'kleur';
 import { request } from '../client.js';
-import { emitJson, fail, note } from '../utils/output.js';
+import { confirm, emitJson, fail, note } from '../utils/output.js';
 import { pollUntilDone } from '../utils/poll.js';
 
 interface Envelope<T = unknown> {
@@ -159,6 +159,53 @@ export function registerMetaCommands(program: Command): void {
           );
           note(`${rows.length} ad set(s)`);
         } else emitJson(rows);
+      } catch (err) { fail(err); }
+    });
+
+  // ─── delivery control ─────────────────────────────────────────────────────
+
+  meta
+    .command('campaign-status')
+    .description('Turn a campaign on (ACTIVE — starts spending), off (PAUSED) or archive it')
+    .requiredOption('--campaign <id>', 'Campaign id')
+    .requiredOption('--account <id>', 'Meta ad account id')
+    .requiredOption('--status <s>', 'active | paused | archived')
+    .option('--yes', 'Skip the confirmation prompt for --status active', false)
+    .option('--human', 'Pretty-print')
+    .action(async (opts: { campaign: string; account: string; status: string; yes?: boolean; human?: boolean }) => {
+      const status = opts.status.trim().toUpperCase();
+      if (!['ACTIVE', 'PAUSED', 'ARCHIVED'].includes(status)) {
+        fail(new Error(`Invalid --status "${opts.status}". Use active | paused | archived.`));
+        return;
+      }
+      // ACTIVE is the only irreversible-by-accident direction: it starts
+      // delivery and spends budget. Interactive callers get a confirmation;
+      // scripts and agents pass --yes (or run non-TTY, where we refuse rather
+      // than block on a prompt nobody can answer).
+      if (status === 'ACTIVE' && !opts.yes) {
+        if (!process.stdin.isTTY) {
+          fail(new Error('Refusing to activate a campaign non-interactively without --yes (this starts ad spend).'));
+          return;
+        }
+        const answer = await confirm(
+          `Activate campaign ${opts.campaign}? This starts delivery and spends its budget. [y/N] `,
+        );
+        if (!answer) {
+          note('Aborted — campaign left unchanged.');
+          return;
+        }
+      }
+      try {
+        const res = await request<{ success?: boolean; campaign_id?: string; status?: string }>(
+          '/api/deploy-meta/campaign-status',
+          {
+            method: 'POST',
+            body: { campaign_id: opts.campaign, ad_account_id: opts.account, status },
+          },
+        );
+        if (opts.human) {
+          note(`Campaign ${res.campaign_id ?? opts.campaign} → ${res.status ?? status}`);
+        } else emitJson(res);
       } catch (err) { fail(err); }
     });
 

@@ -238,6 +238,7 @@ PostgREST-direct (user JWT + RLS). Requires `QUICKDESIGN_SUPABASE_ANON_KEY`.
 | `insights` / `report` / `radar` | Performance analytics (radar: `--compute` for fresh grades) |
 | `publish --account … --page … --design … [--wait]` | Publish designs as PAUSED Meta ads |
 | `publish-status <jobId>` | Poll a publish job |
+| `campaign-status --account … --campaign … --status active\|paused\|archived [--yes]` | Turn a campaign on/off (or archive). `active` starts spend — prompts unless `--yes` |
 | `settings` | Stored Meta account settings |
 
 ### `cost` — credit pricing
