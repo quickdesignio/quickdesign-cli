@@ -82,9 +82,12 @@ export function registerAdCreatorCommands(program: Command): void {
     .option('--human', 'Pretty-print for a TTY', false)
     .action(async (opts: { human?: boolean }) => {
       try {
+        // Authenticated: the whole /api/smart-ad-creator router sits behind
+        // `supabaseAuth` (every route spends credits or returns user-scoped
+        // jobs), so the previous `auth: false` here answered 401. Same class
+        // of breakage as the spy commands fixed in 0df26ea.
         const r = await request<{ concepts?: Array<{ key: string; label: string }> }>(
           '/api/smart-ad-creator/concepts',
-          { auth: false },
         );
         if (opts.human) {
           for (const c of r.concepts ?? []) {
