@@ -134,7 +134,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Add captions to existing video | `references/auto-subtitle.md` |
 | Brand not in Spy Brands library / 0 search results | `references/spybrands-add-on-miss.md` |
 | User is on claude.ai (web) and asks about QuickDesign | `references/connecting-claude-ai-via-mcp.md` |
-| Publish designs to Meta as ads / analyze own Meta ad performance | `references/deploy-meta.md` |
+| Publish designs to Meta as ads / analyze own Meta ad performance / moderate FB+IG comments | `references/deploy-meta.md` |
 
 **By job phase:**
 
@@ -216,7 +216,7 @@ references/                        ← model-agnostic concepts (read for princip
    avatar-edit-not-regenerate.md   ← edit-style verbs, don't compose-regen the avatar
    spybrands-add-on-miss.md        ← when `spy brands --search` returns 0: confirm + resolve FB page + `spy add`
    connecting-claude-ai-via-mcp.md ← claude.ai (web) users: how to connect via MCP, what's available vs. CLI-only
-   deploy-meta.md                  ← `meta` commands: publish designs as PAUSED Meta ads + insights/report/radar analytics
+   deploy-meta.md                  ← `meta` commands: publish designs as PAUSED Meta ads + insights/report/radar analytics + comments moderation
    voice-continuity.md             ← --reference-audio across multi-segment
    no-music-no-subtitles.md        ← minimal music + subtitle suppression
    auto-subtitle.md                ← post-generation captions (real ASR, not model-burned)

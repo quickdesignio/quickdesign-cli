@@ -312,6 +312,148 @@ export function registerMetaCommands(program: Command): void {
       } catch (err) { fail(err); }
     });
 
+  // ─── comments (FB/IG moderation) ─────────────────────────────────────────
+
+  meta
+    .command('comments')
+    .description('Synced Facebook/Instagram comments under your ads and posts, with AI labels')
+    .requiredOption('--account <id>', 'Meta ad account id')
+    .option('--tab <t>', 'attention (default) | questions | all | hidden')
+    .option('--platform <p>', 'facebook | instagram')
+    .option('--source <s>', 'ad | organic')
+    .option('--cursor <c>', 'next_cursor from the previous page (opaque)')
+    .option('--limit <n>', 'Page size (max 200)', (v) => parseInt(v, 10))
+    .option('--human', 'Pretty-print')
+    .action(async (opts: { account: string; tab?: string; platform?: string; source?: string; cursor?: string; limit?: number; human?: boolean }) => {
+      try {
+        const res = await request<Envelope<Array<Record<string, unknown>>> & { next_cursor?: string | null; counts?: Record<string, number> }>(
+          '/api/deploy-meta/comments',
+          {
+            query: {
+              ad_account_id: opts.account,
+              tab: opts.tab,
+              platform: opts.platform,
+              source: opts.source,
+              cursor: opts.cursor,
+              limit: opts.limit,
+            },
+          },
+        );
+        const rows = res.data ?? [];
+        if (opts.human) {
+          rows.forEach((c) => {
+            const flags = [
+              c.platform === 'instagram' ? 'IG' : 'FB',
+              c.ad_id ? 'ad' : 'organic',
+              c.is_hidden ? 'hidden' : '',
+              c.replied_at ? 'replied' : '',
+            ].filter(Boolean).join(',');
+            process.stdout.write(
+              `${kleur.bold(String(c.ai_label ?? '-').padEnd(9))} ${flags.padEnd(22)} ${String(c.author_name ?? '?').slice(0, 18).padEnd(19)} ${String(c.message ?? '').replace(/\s+/g, ' ').slice(0, 70)}\n` +
+                `${''.padEnd(10)}${kleur.dim(`id=${String(c.comment_id)}${c.post_permalink ? `  ${String(c.post_permalink)}` : ''}`)}\n`,
+            );
+          });
+          const counts = res.counts ?? {};
+          note(
+            `${rows.length} comment(s) — attention ${counts.attention ?? 0}, questions ${counts.questions ?? 0}, all ${counts.all ?? 0}, hidden ${counts.hidden ?? 0}` +
+              (res.next_cursor ? `  (more: --cursor '${res.next_cursor}')` : ''),
+          );
+        } else emitJson(res);
+      } catch (err) { fail(err); }
+    });
+
+  meta
+    .command('comments-sync')
+    .description('Pull fresh comments from Meta and label new ones with AI (30-120s on busy accounts)')
+    .requiredOption('--account <id>', 'Meta ad account id')
+    .option('--days <n>', 'Look-back window for paused ads / organic posts (default 14)', (v) => parseInt(v, 10))
+    .option('--human', 'Pretty-print')
+    .action(async (opts: { account: string; days?: number; human?: boolean }) => {
+      try {
+        note('Syncing comments from Meta — this can take a minute…');
+        const res = await request<Envelope<Record<string, unknown>>>('/api/deploy-meta/comments/sync', {
+          method: 'POST',
+          body: { ad_account_id: opts.account, days: opts.days },
+          signal: AbortSignal.timeout(180_000),
+        });
+        const d = res.data ?? {};
+        if (opts.human) {
+          const cls = (d.classification ?? {}) as Record<string, unknown>;
+          note(
+            `fetched ${fmtNum(d.fetched)}, upserted ${fmtNum(d.upserted)}, new ${(d.new_comment_ids as unknown[] | undefined)?.length ?? 0}, ` +
+              `classified ${fmtNum(cls.classified)}, failed ${fmtNum(cls.failed)}${cls.deferred ? `, deferred ${fmtNum(cls.deferred)}` : ''}`,
+          );
+          const skipped = (d.skipped ?? []) as Array<{ reason: string; count: number }>;
+          skipped.forEach((sk) => note(`skipped ${sk.reason} ×${sk.count}`));
+        } else emitJson(res);
+      } catch (err) { fail(err); }
+    });
+
+  meta
+    .command('comment-action')
+    .description('hide | unhide | reply | delete one comment (reply/delete prompt unless --yes)')
+    .requiredOption('--comment <id>', 'Meta comment id (from `meta comments`)')
+    .requiredOption('--action <a>', 'hide | unhide | reply | delete')
+    .option('--message <text>', 'Reply text (required for --action reply)')
+    .option('--yes', 'Skip the confirmation prompt for reply / delete', false)
+    .option('--human', 'Pretty-print')
+    .action(async (opts: { comment: string; action: string; message?: string; yes?: boolean; human?: boolean }) => {
+      const action = opts.action.trim().toLowerCase();
+      if (!['hide', 'unhide', 'reply', 'delete'].includes(action)) {
+        fail(new Error(`Invalid --action "${opts.action}". Use hide | unhide | reply | delete.`));
+        return;
+      }
+      if (action === 'reply' && !opts.message?.trim()) {
+        fail(new Error('--message is required for --action reply.'));
+        return;
+      }
+      // reply publishes text in the Page / IG account's name; delete is
+      // permanent. Same guard shape as campaign-status --status active.
+      if ((action === 'reply' || action === 'delete') && !opts.yes) {
+        if (!process.stdin.isTTY) {
+          fail(new Error(`Refusing to ${action} non-interactively without --yes.`));
+          return;
+        }
+        const q = action === 'reply'
+          ? `Post this public reply on comment ${opts.comment}?\n  "${opts.message}"\n[y/N] `
+          : `Delete comment ${opts.comment} permanently? This cannot be undone. [y/N] `;
+        const answer = await confirm(q);
+        if (!answer) {
+          note('Aborted — comment left unchanged.');
+          return;
+        }
+      }
+      try {
+        const res = await request<Envelope<Record<string, unknown>>>(
+          `/api/deploy-meta/comments/${encodeURIComponent(opts.comment)}/action`,
+          { method: 'POST', body: { action, message: opts.message } },
+        );
+        if (opts.human) {
+          const d = res.data ?? {};
+          note(`${action} → ok${d.warning ? ` (${String(d.warning)})` : ''}`);
+        } else emitJson(res);
+      } catch (err) { fail(err); }
+    });
+
+  meta
+    .command('comment-draft')
+    .description('AI reply suggestions for one comment (nothing is posted)')
+    .requiredOption('--comment <id>', 'Meta comment id')
+    .option('--human', 'Pretty-print')
+    .action(async (opts: { comment: string; human?: boolean }) => {
+      try {
+        const res = await request<Envelope<{ drafts?: string[] }>>(
+          `/api/deploy-meta/comments/${encodeURIComponent(opts.comment)}/ai-draft`,
+          { method: 'POST', body: {}, signal: AbortSignal.timeout(90_000) },
+        );
+        const drafts = res.data?.drafts ?? [];
+        if (opts.human) {
+          drafts.forEach((d, i) => process.stdout.write(`${kleur.bold(String(i + 1))}. ${d}\n`));
+          if (drafts.length === 0) note('No drafts returned.');
+        } else emitJson(res);
+      } catch (err) { fail(err); }
+    });
+
   // ─── publish ──────────────────────────────────────────────────────────────
 
   meta

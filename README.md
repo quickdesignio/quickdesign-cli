@@ -240,6 +240,10 @@ PostgREST-direct (user JWT + RLS). Requires `QUICKDESIGN_SUPABASE_ANON_KEY`.
 | `publish-status <jobId>` | Poll a publish job |
 | `campaign-status --account … --campaign … --status active\|paused\|archived [--yes]` | Turn a campaign on/off (or archive). `active` starts spend — prompts unless `--yes` |
 | `settings` | Stored Meta account settings |
+| `comments --account … [--tab attention\|questions\|all\|hidden] [--platform] [--source] [--cursor]` | Synced FB/IG comments with AI labels |
+| `comments-sync --account …` | Pull fresh comments from Meta + label new ones (30-120s) |
+| `comment-action --comment … --action hide\|unhide\|reply\|delete [--message] [--yes]` | Moderate one comment. `reply`/`delete` prompt unless `--yes` |
+| `comment-draft --comment …` | AI reply suggestions (nothing posted) |
 
 ### `cost` — credit pricing
 
