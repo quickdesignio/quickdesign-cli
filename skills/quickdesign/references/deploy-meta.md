@@ -101,6 +101,38 @@ When the report/radar numbers look stale, run `radar --compute` once, then
 re-read. Don't run `--compute` repeatedly in a loop — it hits the Meta API
 hard and takes ~30-90s per run.
 
+## Comments — moderate FB/IG comments under ads and posts
+
+```bash
+# 1. Pull fresh comments (active ads + recently paused ads + recent organic posts) and label them
+quickdesign meta comments-sync --account act_X --human
+
+# 2. Triage: attention = negative/spam + unanswered questions (default tab)
+quickdesign meta comments --account act_X --human
+quickdesign meta comments --account act_X --tab questions --platform instagram --human
+quickdesign meta comments --account act_X --tab all --source ad --limit 100   # JSON, paging via --cursor
+
+# 3. Act on one comment (id from step 2)
+quickdesign meta comment-action --comment <id> --action hide
+quickdesign meta comment-draft  --comment <id> --human                  # 3 AI suggestions, nothing posted
+quickdesign meta comment-action --comment <id> --action reply --message "…" --yes
+quickdesign meta comment-action --comment <id> --action delete --yes
+```
+
+Rules for agents:
+
+- `hide` / `unhide` are reversible — fine to run when the user asks to hide spam or negativity.
+- `reply` posts **public** text in the Page / Instagram account's name: show the user the exact text
+  and get an explicit OK first. `delete` is permanent: only when the user names that comment.
+  Both prompt on a TTY and refuse non-interactively without `--yes`.
+- Never bulk-reply or bulk-delete from a list the user has not reviewed.
+- A background job syncs every 30 minutes; run `comments-sync` only when the user wants fresh data
+  (30-120 s on busy accounts).
+- 403 "permission" errors mean the user's Meta connection predates the comment scopes → they must
+  **Reconnect** in app.quickdesign.io/deploy-meta → Account Settings.
+- Instagram *ad-only* media may be skipped (`skipped: ig_ad_comments_unavailable`) — Meta does not
+  expose comments on some dark-post IG ads.
+
 ## Gotchas
 
 - `--budget` is in the ad account's currency major unit (see `meta accounts` output).
