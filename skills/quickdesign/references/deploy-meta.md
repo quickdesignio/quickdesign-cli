@@ -92,10 +92,13 @@ Radar categories and what to recommend:
 
 | Category | Meaning | Recommendation |
 |---|---|---|
-| `winner` | High grade + meaningful spend | Scale budget |
-| `high_potential` | High grade, low spend | Push more budget to test |
-| `iteration_candidate` | Middling metrics | Iterate on the creative (new hook/visual) |
-| `underperformer` | Low grade | Pause/kill, reallocate |
+| `winner` | A/B+ grade, spend above threshold, metric at/above goal | Scale budget |
+| `high_potential` | A/B+ grade, low spend | Push more budget to test |
+| `iteration_candidate` | B/B-/C — middling metrics | Iterate on the creative (new hook/visual) |
+| `underperformer` | D/E grade | Pause/kill, reallocate |
+| `insufficient_data` | <1000 impressions or <25% of the spend threshold | Wait — not graded yet |
+
+Each row also carries `reasons[]` (why this grade) and `previous_grade` (last run); `--human` prints the first reason.
 
 When the report/radar numbers look stale, run `radar --compute` once, then
 re-read. Don't run `--compute` repeatedly in a loop — it hits the Meta API
