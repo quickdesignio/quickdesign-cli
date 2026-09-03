@@ -270,10 +270,10 @@ export function registerMetaCommands(program: Command): void {
 
   meta
     .command('radar')
-    .description('Creative grades: winners / high potential / iteration candidates / underperformers')
+    .description('Creative grades: winners / high potential / iteration candidates / underperformers / insufficient data')
     .requiredOption('--account <id>', 'Meta ad account id')
     .option('--compute', 'Re-sync metrics from Meta and recompute grades first (~30-90s)', false)
-    .option('--category <c>', 'Filter: winner | high_potential | iteration_candidate | underperformer')
+    .option('--category <c>', 'Filter: winner | high_potential | iteration_candidate | underperformer | insufficient_data')
     .option('--human', 'Pretty-print')
     .action(async (opts: { account: string; compute?: boolean; category?: string; human?: boolean }) => {
       try {
@@ -289,11 +289,14 @@ export function registerMetaCommands(program: Command): void {
         });
         const rows = res.data ?? [];
         if (opts.human) {
-          rows.forEach((g) =>
+          rows.forEach((g) => {
+            const reasons = Array.isArray(g.reasons) ? (g.reasons as unknown[]) : [];
+            const reason = reasons.length > 0 ? String(reasons[0]) : '';
+            const prev = typeof g.previous_grade === 'string' && g.previous_grade ? ` was ${g.previous_grade}` : '';
             process.stdout.write(
-              `${kleur.bold(String(g.grade ?? '?').padEnd(3))} ${String(g.category ?? '').padEnd(20)} ${String(g.ad_name ?? g.creative_id ?? '?').slice(0, 40).padEnd(42)} score=${fmtNum(g.conversion_score)}\n`,
-            ),
-          );
+              `${kleur.bold(String(g.overall_grade ?? '?').padEnd(3))} ${String(g.category ?? '').padEnd(20)} ${String(g.ad_name ?? g.creative_id ?? '?').slice(0, 40).padEnd(42)} score=${fmtNum(g.conversion_score)}${prev}${reason ? `  ${kleur.dim(reason)}` : ''}\n`,
+            );
+          });
           note(`${rows.length} graded creative(s)`);
         } else emitJson(rows);
       } catch (err) { fail(err); }
