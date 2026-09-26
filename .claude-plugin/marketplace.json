@@ -9,7 +9,7 @@
     {
       "name": "quickdesign",
       "source": ".",
-      "description": "AI media generation skill: Seedance 2.0 R2V, Sora 2, Kling, Nano Banana 2, Topaz upscale. Multi-segment UGC pipeline with voice continuity. Includes per-model reference cards, model-agnostic concept docs, and the canonical talking-avatar workflow.",
+      "description": "AI media generation skill: Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana 2 / Pro, Flux 3, Gemini Omni Video, Kling, Topaz upscale. Multi-segment UGC pipeline with voice continuity. Includes per-model reference cards, model-agnostic concept docs, and the canonical talking-avatar workflow.",
       "category": "media",
       "tags": ["video", "image", "ugc", "ai-generation"]
     }

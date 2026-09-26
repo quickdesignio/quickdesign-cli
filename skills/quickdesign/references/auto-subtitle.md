@@ -97,7 +97,7 @@ $0.03 per minute of source video on fal.ai → **1 credit per second** at our st
 5. **Duration**: auto-detected via `ffprobe` for local files. For remote URLs, pass `--duration-seconds <n>` explicitly.
 
 6. **Plan summary** must mention subtitle as a separate cost line:
-   > "Plan: 3-segment UGC video (Seedance R2V) → 1500cr + auto-subtitle on final 36s concat → 36cr. Total: 1536cr. OK?"
+   > "Plan: 2-segment UGC video (Seedance 2.5, 20s + 15s @ 720p) → 980cr + auto-subtitle on final 35s concat → 35cr. Total: 1015cr. OK?"
 
 ## What NOT to do
 

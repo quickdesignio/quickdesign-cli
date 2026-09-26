@@ -9,6 +9,8 @@ Three connected layers handle multi-segment commercial coherence:
 2. **`--reference-audio`** — locks voice character across segments (see `voice-continuity.md`).
 3. **Narrative arc** — the planned 3-beat storyline that gives the cuts meaning.
 
+**Single segment or multi-segment?** On Seedance 2.5 one segment holds up to 30s, so a ≤30s ad with a pure gaze/gesture/talking arc can carry all three beats inside ONE prompt — write them as timestamped beats ("0-8s: … around 9s: … final 5s: …"). Split into real segments when a beat needs a different reference image (angle change, or a state the source reference contradicts — a single call can't swap references mid-shot) or when speech runs past 30s. Everything below applies per beat either way; the reference-image decisions only apply once you've split.
+
 The setting pin (`"in the same exact setting throughout — <specific scene tokens>"`) covers location continuity. The action description per segment naturally covers prop/accessory state — Seedance follows the prescribed action, so what's in the action lines is what ends up in the visual.
 
 **Important nuance**: when the desired state in a segment **conflicts** with the reference image, **the reference image wins**. Action descriptions like "mouth is now empty — no crystal visible" cannot reliably override a reference image that shows the crystal in the mouth. Seedance treats the reference as a strong visual anchor, not just a style hint.
@@ -27,17 +29,17 @@ Before drafting prompts, walk through this decision per segment:
 
 For example: source has a crystal in mouth, this segment needs an empty mouth; or source has glasses on, this segment needs glasses off; or source has hands at sides, this segment needs hands holding a product up.
 
-→ **Yes — if the state change is significant and the reference contradicts it, generate a state-matched reference via nano-banana-2 for THAT segment.** ~24cr per edit at 2K. Without this, the action description loses to the reference image and the state break is visible at the cut.
+→ **Yes — if the state change is significant and the reference contradicts it, generate a state-matched reference edit for THAT segment** (default `gpt-image-2-5-sunburst-i2i`; `nano-banana-2` for 4:5). ~18cr per edit at 2K. Without this, the action description loses to the reference image and the state break is visible at the cut. This is also what forces a split: the state-matched reference needs its own segment.
 
 ### 3. Borderline / ambiguous?
 
 E.g. "she removes the sunglasses partway through" — reference shows glasses on, action shows them coming off mid-shot. Could go either way.
 
-→ **Ask the user before burning credit.** Surface the question in the plan summary: "Seg 2 needs glasses-off at the close. Source has glasses on. Generate a glasses-off reference image (~24cr) or trust the action line and risk the reference winning?" Let them pick.
+→ **Ask the user before burning credit.** Surface the question in the plan summary: "Seg 2 needs glasses-off at the close. Source has glasses on. Generate a glasses-off reference image (~18cr) or trust the action line and risk the reference winning?" Let them pick.
 
 ## Worst case — every segment a different state
 
-A 3-segment video where each segment requires a distinct prop/pose state can need 3 separate nano-banana edits. Cost: ~72cr in image edits + 3 R2V calls. Surface this in the plan summary so the user can choose to simplify the arc if cost is a concern.
+A 3-segment video where each segment requires a distinct prop/pose state can need 3 separate reference edits. Cost: ~54cr in Sunburst 2K edits + 3 Seedance 2.5 calls (e.g. 3× 10s @ 720p = 840cr). Surface this in the plan summary so the user can choose to simplify the arc if cost is a concern.
 
 ## Plan a 3-beat arc before writing prompts
 
@@ -64,14 +66,14 @@ For voiceover (model not speaking) commercials, the arc is in **gaze / posture /
 **Don't use a "still life" reference image for the closer.** If the reference shows the subject already in their final pose (lying down, fully relaxed, hands at sides, mouth closed), Seedance has nowhere to go — it produces 11s of frozen output that looks dead.
 
 The closer needs:
-- **Action-loaded reference**: subject mid-gesture (pointing at something, mid-stride, head turning, hand reaching toward an object). Generate via nano-banana-2 if needed.
+- **Action-loaded reference**: subject mid-gesture (pointing at something, mid-stride, head turning, hand reaching toward an object). Generate a reference edit (`gpt-image-2-5-sunburst-i2i`) if needed.
 - **Motion-verb action lines**: "She lowers her hand from the wall, takes a small step back, and gives a soft shrug-smile" — concrete movement. Not "she quietly looks at the wall, camera holds steady" (that's a frozen recipe).
 
 A closer that's literally "subject doing nothing in their final pose" produces dead output. Always design the closer with a small movement payoff.
 
 ## How to apply
 
-1. **Storyline first.** Before drafting prompts, write a one-line beat per segment ("Seg 1: pointing at the panda. Seg 2: hand drops, turns to camera. Seg 3: smiles, slight wave."). Surface this in the plan summary so the user can okay or redirect the arc before generation burns credit.
+1. **Storyline first.** Before drafting prompts, write a one-line beat per segment — or per timestamp range if the whole ≤30s arc fits one Seedance 2.5 call ("Seg 1: pointing at the panda. Seg 2: hand drops, turns to camera. Seg 3: smiles, slight wave."). Surface this in the plan summary so the user can okay or redirect the arc before generation burns credit.
 2. Each segment's prompt has ONE prescriptive action line that names the beat — concrete enough that Seedance can render it (timestamps help: "around the third second she lowers her hand…").
 3. Setting pin at the end: `"in the same exact setting throughout — <scene tokens>"`. Handles location continuity.
 4. **Don't** add a state-lock block. The action line already constrains props by what it includes/excludes.

@@ -12,7 +12,7 @@ description: Topaz video upscale. Run AFTER final concat to bump 720p / 1080p ge
 - Source footage is older / lower res and you want to clean it up before publish
 - Text-heavy / detail-heavy frames need extra crispness
 
-Don't use as a substitute for generating at 1080p in the first place. Seedance R2V at 1080p produces a cleaner master than 720p + Topaz upscale, in most cases.
+Don't use as a substitute for generating at the right resolution in the first place. Seedance 2.5 tops out at 1080p, so a 4K master means either 2.5 (720p/1080p) + Topaz, or `seedance-2.0-r2v` at native `4k`. Compare both with `quickdesign cost` before choosing.
 
 ## Hard facts (live)
 

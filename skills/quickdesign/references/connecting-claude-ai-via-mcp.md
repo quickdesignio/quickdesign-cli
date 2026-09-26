@@ -22,7 +22,7 @@ If the user mentions any of the following, the MCP path is likely the right poin
 - "I'm in Claude Desktop and don't want to mess with config files" — Desktop's GUI connector works with the same OAuth flow
 - The user is asking about brand research / cost lookup / generation but isn't running a terminal
 
-When the user is clearly in Claude Code with the CLI installed, the CLI path is faster and richer (covers all 25 tools, Phase 1 MCP only ships 10). Don't push MCP on Claude Code users.
+When the user is clearly in Claude Code with the CLI installed, the CLI path is faster and richer (local-file auto-upload, ffmpeg for multi-segment stitching). Don't push MCP on Claude Code users.
 
 ## How a user connects claude.ai
 
@@ -42,35 +42,41 @@ If anything fails mid-flow, the user should:
 - Try once in an Incognito/private window — third-party cookies are sometimes blocked by browser extensions.
 - Clear claude.ai's connector entry and re-add it (a stale token from a half-finished setup can stick around).
 
-## What tools are available via MCP (Phase 1)
+## What tools are available via MCP
 
-Phase 1 ships read-mostly tools so we get the OAuth + transport plumbing battle-tested before adding paid generation:
+The MCP server exposes the full generation surface now, not just read tools (checked against the BFF tool registry, 2026-09-26):
 
-| MCP tool | What it does | Cost |
+| Group | MCP tools | Cost |
 |---|---|---|
-| `quickdesign_spy_search_brands` | Search the Spy Brands library by name. Diacritic-insensitive, prefix/suffix-tolerant. | 0 |
-| `quickdesign_spy_get_brand` (Phase 2) | Single brand by id | 0 |
-| `quickdesign_spy_get_brand_ads` (Phase 2) | List a brand's ads | 0 |
-| `quickdesign_spy_best_ads` (Phase 2) | Top performing ads across the library | 0 |
-| `quickdesign_spy_trending_ads` (Phase 2) | Trending feed | 0 |
-| `quickdesign_spy_add_brand` (Phase 2) | Register a new brand on demand | 0 |
-| `quickdesign_models` (Phase 2) | List active AI models with categories + cost shape | 0 |
-| `quickdesign_calculate_cost` (Phase 2) | Compute exact credit cost for a model + params | 0 |
-| `quickdesign_design_list` (Phase 2) | List the user's saved designs | 0 |
-| `quickdesign_brand_scrape` (Phase 2) | Brand DNA scrape (colors / fonts / logo) | 0 |
+| Spy Brands | `quickdesign_spy_search_brands`, `_spy_get_brand`, `_spy_get_brand_ads`, `_spy_best_ads`, `_spy_trending_ads`, `_spy_add_brand` | 0 |
+| Models / cost | `quickdesign_models`, `quickdesign_calculate_cost` | 0 |
+| Designs / templates | `quickdesign_design_list`, `quickdesign_template_list`, `quickdesign_template_filters` | 0 |
+| Brand DNA | `quickdesign_brand_scrape` | 0 |
+| Image generation | `quickdesign_image_generate`, `_image_status`, `_image_result`, `_image_history` | paid |
+| Video generation | `quickdesign_video_generate`, `_video_status`, `_video_history`, `_video_subtitle`, `_video_upscale` | paid |
+| Ad Creator | `quickdesign_ad_creator_concepts`, `_ad_creator_generate`, `_ad_creator_advantage_plus`, `_ad_creator_status` | paid |
+| Flows | `quickdesign_flow_list`, `_flow_get`, `_flow_generate`, `_flow_edit`, `_flow_duplicate`, `_flow_delete` | paid when a flow runs |
+| Deploy Meta | `quickdesign_meta_accounts`, `_meta_publish`, `_meta_publish_status`, `_meta_campaigns`, `_meta_campaign_status`, `_meta_insights`, `_meta_report`, `_meta_radar`, `_meta_settings`, `_meta_comments`, `_meta_comments_sync`, `_meta_comment_action`, `_meta_comment_draft` | 0 credits (activating a campaign spends ad budget — see `./deploy-meta.md`) |
 
-**Phase 2 (paid generation) — `quickdesign_image_generate`, `_video_generate`, `_ad_creator_generate` etc. — is deferred** until the OAuth path is stable. Until then, paid generation stays CLI-only. The agent should NOT promise these to MCP-on-web users yet.
+Every skill rule applies on the MCP path exactly as on the CLI: plan summary + reference-edit gates (`./confirmation-rules.md`), `@Image1` labels, the no-music / no-subtitles lines.
 
-## What tools are NOT available via MCP
+### Model defaults on MCP — always pass `model`
 
-Anything that hits user credits is currently CLI-only. If a claude.ai user asks for image / video generation, the agent should:
+The MCP tools keep legacy defaults, so pass the model explicitly:
 
-1. Confirm what they want.
-2. Tell them generation is currently CLI-only (Phase 2 of the MCP rollout will bring it).
-3. Offer the alternatives:
-   - Install the CLI (`npm install -g @quickdesign/cli` + `quickdesign init`) and run it locally.
-   - Open a Claude Code session if they have it.
-   - Wait for Phase 2 if they prefer to keep using claude.ai.
+- `quickdesign_video_generate` with no `model` falls back to `seedance-2.0-r2v`. Pass `model: "seedance-2.5"` for the default video model (`../models/seedance-2.5.md`).
+- `quickdesign_image_generate` defaults to `nano-banana-2`. Pass `model: "gpt-image-2-5-sunburst-i2i"` plus `reference_image_urls` for the default edit path (`../models/gpt-image-2-5-sunburst-i2i.md`). Keep `nano-banana-2` for 4:5 deliverables.
+- MCP routes any active registry slug (`flux-3-t2v` / `flux-3-i2v`, `gemini-omni-video`, `kling-*`) and rejects inputs the model can't take before any credits are spent. Prompt-only Seedance 2.5 works on MCP (it's routed to the right endpoint), unlike the CLI.
+- Sora 2 is retired (2026-09-23): `sora2-*` slugs come back as an unknown model. Offer Flux 3 for cinematic single shots.
+
+## What still needs the CLI
+
+MCP tools take URLs, not local file paths, and there's no local shell behind them. So:
+
+- **Local files** — the CLI auto-uploads local paths; on MCP the user has to supply public URLs (or use designs already in their QuickDesign library).
+- **ffmpeg steps** — extracting Seg 1's audio for `--reference-audio` voice continuity and concatenating segments happen on the user's machine. Multi-segment videos (scripts over Seedance 2.5's 30s cap) are therefore CLI territory; a single-segment video up to 30s works end-to-end on MCP.
+
+If a claude.ai user asks for a multi-segment video, confirm what they want, render what fits in one segment via MCP, and offer the CLI (`npm install -g @quickdesign/cli` + `quickdesign init`) or a Claude Code session for the full stitched version.
 
 ## Troubleshooting
 
@@ -89,5 +95,5 @@ Tokens issued via this OAuth flow are scoped to `aud: 'mcp'`, distinct from the 
 ## How this doc fits with the rest of the skill
 
 - The CLI / Claude Code surface is the canonical path for power users — every existing skill rule applies as written.
-- This MCP path is a strict subset of capabilities for users who can't or won't install the CLI.
+- This MCP path covers generation too, but without local files or ffmpeg — see "What still needs the CLI" above.
 - When the agent is unsure which path the user is on, ask: *"Are you running this in Claude Code (with the CLI installed) or in claude.ai (web)?"* The answer determines which surface the agent calls into.

@@ -1,9 +1,11 @@
 ---
 name: Multi-segment prompts describe first-frame composition, NOT camera motion
-description: For multi-segment Seedance R2V videos, each segment's prompt should describe the starting framing/composition (wide / medium / close / over-shoulder), not a camera-motion arc (slow zoom-in, pull-back, static hold). Camera-motion language is unreliable across segments and adds prompt noise. Seedance produces natural micro-motion (breathing, head turns, gestures) by itself — let it.
+description: For multi-segment Seedance videos (2.5 or 2.0 R2V), each segment's prompt should describe the starting framing/composition (wide / medium / close / over-shoulder), not a camera-motion arc (slow zoom-in, pull-back, static hold). Camera-motion language is unreliable across segments and adds prompt noise. Seedance produces natural micro-motion (breathing, head turns, gestures) by itself — let it.
 ---
 
-In multi-segment UGC videos the cut between segments is the moment the viewer's eye lands somewhere new. **What matters is where each segment STARTS visually** — that becomes the new shot. Camera-motion direction within a 4-15 second segment is either ignored, randomized, or applied inconsistently from one Seedance call to the next.
+In multi-segment UGC videos the cut between segments is the moment the viewer's eye lands somewhere new. **What matters is where each segment STARTS visually** — that becomes the new shot. Camera-motion direction within a segment (5–30s on Seedance 2.5, 4–15s on 2.0 R2V) is either ignored, randomized, or applied inconsistently from one Seedance call to the next.
+
+With Seedance 2.5 a script of ≤30s is usually ONE segment, so the cut-planning half of this rule matters mostly for >30s scripts or explicit angle-cut plans. The "no camera-motion verbs" half applies to every Seedance prompt, single-segment included.
 
 ## What to write in the prompt
 
@@ -20,7 +22,7 @@ In multi-segment UGC videos the cut between segments is the moment the viewer's 
 - ❌ "Static camera holding the position steady"
 - ❌ "The camera pulls back gradually"
 
-Seedance R2V already adds natural micro-motion (subject breathing, slight head turns, hand gestures, ambient parallax). Explicit camera motion either:
+Seedance already adds natural micro-motion (subject breathing, slight head turns, hand gestures, ambient parallax). Explicit camera motion either:
 - Gets ignored (Seedance picks its own motion anyway)
 - Gets randomized (3 segments come out with 3 visibly different motion personalities)
 - Adds prompt noise that competes with the actual scene description and quoted speech
@@ -30,7 +32,7 @@ Seedance R2V already adds natural micro-motion (subject breathing, slight head t
 When you cut Seg 1 → Seg 2 → Seg 3:
 - Viewer's eye snaps to wherever Seg N+1's frame 1 lands
 - If frame 1 is meaningfully different framing (medium → close-up), the cut reads as cinematography
-- Within-segment motion (the 4-15s of micro-movement) is decoration — it doesn't define the cut
+- Within-segment motion (the seconds of micro-movement after frame 1) is decoration — it doesn't define the cut
 
 So prompt design becomes: **pick the starting frame per segment**, let Seedance handle the rest.
 

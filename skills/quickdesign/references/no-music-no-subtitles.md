@@ -1,13 +1,13 @@
 ---
 name: No music score, no burned subtitles — minimal directive only
-description: Seedance R2V auto-layers a music bed under voiceover and burns hallucinated captions when prompts contain quoted speech. Add two short prompt lines to suppress both. Don't enumerate ambient sounds — over-prescribing makes audio feel scripted; Seedance produces natural ambient organically.
+description: Seedance (2.5 and 2.0 alike) auto-layers a music bed under voiceover and burns hallucinated captions when prompts contain quoted speech. Add two short prompt lines to suppress both. Don't enumerate ambient sounds — over-prescribing makes audio feel scripted; Seedance produces natural ambient organically.
 ---
 
 Seedance has two off-target defaults for UGC: it layers a music track under the voiceover, and it burns hallucinated subtitles into the pixels. Both kill authentic creator vibe. Both go away with two short prompt lines.
 
 ## The two lines
 
-Add these to every R2V prompt with quoted speech (audio scope + visual scope, separate sentences):
+Add these to every Seedance prompt with quoted speech (audio scope + visual scope, separate sentences). Keep them on the other native-audio models too (Flux 3, Gemini Omni Video, Kling) — cheap insurance:
 
 ```
 No music score. No subtitles or on-screen text.
@@ -30,6 +30,6 @@ Only the text that exists in @Image1 itself — no additional text overlays.
 
 ## How to apply
 
-1. Default: every R2V prompt with `--generate-audio` AND quoted speech gets the two short lines. Not the long version, not the ambient enumeration.
+1. Default: every Seedance prompt with native audio on (the default) AND quoted speech gets the two short lines. Not the long version, not the ambient enumeration.
 2. Multi-segment: include both lines in EVERY segment's prompt — voice continuity (`--reference-audio`) doesn't carry the music/subtitle suppression.
 3. Plan summary: surface "music: off" and "subtitles: off" as flags the user can flip.
