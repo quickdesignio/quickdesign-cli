@@ -1,6 +1,6 @@
 ---
 name: Moderation rules — brand names, aggressive verbs, oral content
-description: Seedance R2V (via kie.ai) and nano-banana-2 (Gemini) both have moderation filters that reject generations under specific conditions. The Seedance moderator returns a generic "may be related to copyright restrictions" message that catches multiple distinct triggers. nano-banana-2 has a separate Gemini policy that flags object-in-mouth edits even on benign editorial content. Three rules cover all three triggers.
+description: Seedance (2.5 and 2.0 R2V, both via kie.ai) and the Nano Banana family (Gemini) both have moderation filters that reject generations under specific conditions. The Seedance moderator returns a generic "may be related to copyright restrictions" message that catches multiple distinct triggers. Nano Banana has a separate Gemini policy that flags object-in-mouth edits even on benign editorial content — the default image model (gpt-image-2-5-sunburst-i2i, OpenAI moderation) doesn't share it. Three rules cover all three triggers.
 ---
 
 ## Rule 1: Don't name third-party brands in Seedance prompts
@@ -62,9 +62,9 @@ Likely also triggers around: violence, body-part destruction, distress/scream la
 
 **Don't trust the reject reason field.** If you see "copyright restrictions" but your prompt has no brand name and the reference image is brandless, **search the prompt for aggressive verbs and soften them**. Same narrative beat survives — moderation just wants gentler verbs.
 
-## Rule 3: Object-in-mouth edits — skip nano-banana-2, use gpt-image-2-i2i
+## Rule 3: Object-in-mouth edits — never on Nano Banana; keep them on Sunburst / GPT Image
 
-When a reference edit needs to depict an object **held between teeth, in mouth, or with lips parted around the object**, nano-banana-2 (Gemini) rejects with:
+When a reference edit needs to depict an object **held between teeth, in mouth, or with lips parted around the object**, the Nano Banana family (`nano-banana-2`, `nano-banana-pro`, `nano-banana-lite-*` — all Gemini) rejects with:
 
 > `"violated Google's Generative AI Prohibited Use policy"`
 
@@ -73,26 +73,28 @@ Even when:
 - The prompt names no people, no brands, no aggressive verbs
 - The desired output state is the LESS provocative state vs. source
 
-**Fix**: route in-mouth edits directly to **gpt-image-2-i2i** (OpenAI moderator) — it accepts editorial fashion scenarios. Don't waste retry attempts softening the prompt for nano-banana-2; the rejection is policy-based, not phrasing-based.
+**Fix**: keep in-mouth edits on the OpenAI-moderated GPT Image family — **`gpt-image-2-5-sunburst-i2i`** (the default image-edit model) or `gpt-image-2-i2i`. They accept editorial fashion scenarios. Don't waste retry attempts softening the prompt for Nano Banana; the rejection is policy-based, not phrasing-based.
 
 ```bash
 quickdesign image generate \
-  --model gpt-image-2-i2i \
-  --image source.png \
-  --aspect-ratio 9:16 \
+  --model gpt-image-2-5-sunburst-i2i \
+  --reference-image source.png \
+  --aspect-ratio 9:16 --resolution 2K \
   -p "Same person and setting from the reference. Now with the crystal pomegranate held delicately between her front teeth..." \
   -o output.png --wait
 ```
 
-For all other edits (angle changes, wardrobe, environment swaps, no body-cavity props), nano-banana-2 stays the default — cheaper and faster.
+Since Sunburst is already the default, this rule matters when you've switched to Nano Banana for a reason (4:5 deliverable, budget drafts, Pro fidelity). For an in-mouth prop, switch back to Sunburst — if the deliverable is 4:5, render on Sunburst at 3:4 and crop rather than fighting the Gemini filter.
 
-**Detect the trigger early**: any prompt containing both `"between teeth"` / `"in her mouth"` / `"lips parted"` / `"between her front teeth"` AND a description of the prop → route to gpt-image-2-i2i preemptively.
+**Detect the trigger early**: any prompt containing both `"between teeth"` / `"in her mouth"` / `"lips parted"` / `"between her front teeth"` AND a description of the prop → make sure the model is Sunburst / GPT Image before submitting.
+
+**Same filter on video:** `gemini-omni-video` is Google-moderated too. Don't animate an in-mouth prop with it — use Seedance 2.5.
 
 ## Why these moderators behave this way
 
 - Seedance's moderator uses a generic safety classifier that's tuned for the worst-case interpretation. False positives on editorial / artistic content are common; the reject message is intentionally generic.
 - Gemini's safety classifier appears to flag any prompt + reference combination where an object near/inside an open mouth is described — likely a generalization from oral-content training data that catches false positives on editorial fashion (crystal reveals, flower-in-mouth, fruit-bite shots).
-- The OpenAI image-edit moderator used by gpt-image-2-i2i applies a different policy and lets editorial fashion scenarios through.
+- The OpenAI image-edit moderator used by the GPT Image family (Sunburst, gpt-image-2-i2i) applies a different policy and lets editorial fashion scenarios through.
 
 ## How to apply (combined rules checklist)
 
@@ -102,5 +104,5 @@ When drafting prompts for any reference image:
 2. **Describe each by visual properties only**, not brand name.
 3. **Strip out "brand" as a literal word** from any sentence near the product description.
 4. **Search for aggressive verbs** ("bites", "crunches", "smashes", "rips", "cracks") and soften them to elegant/measured language.
-5. **For object-in-mouth edits**: skip nano-banana-2, go straight to gpt-image-2-i2i.
+5. **For object-in-mouth edits**: never Nano Banana (or Gemini Omni Video) — stay on Sunburst / GPT Image.
 6. **The user's own brand mentions** (in voiceover quoted speech, in CTAs) are fine — they're the user's own.

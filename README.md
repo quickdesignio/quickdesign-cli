@@ -6,7 +6,7 @@
 
 Command-line interface for [QuickDesign](https://quickdesign.io) — built so anyone (or any Claude Code agent) can drive the full QuickDesign stack from a terminal:
 
-- **Generate** AI images (Nano Banana, GPT Image) and videos (Sora 2, Kling, **Seedance 2.0** including reference-to-video, UGC) — start, poll, save to disk in one command.
+- **Generate** AI images (GPT Image 2.5 Sunburst, Nano Banana) and videos (**Seedance 2.5** / 2.0 reference-to-video, Flux 3, Gemini Omni Video, Kling, UGC) — start, poll, save to disk in one command.
 - **Smart Ad Creator** — turn a product URL into a single concept ad, or fan out 16 concepts in parallel (Advantage+).
 - **Spy Brands** — query the competitor ad library: per-brand ads, cross-brand winners, this-week trends.
 - **Brand DNA** — scrape a website's colors / fonts / logo, or run the full Claude-streamed Brand DNA extraction (voice, audience, offer).
@@ -82,8 +82,8 @@ quickdesign image generate \
   --prompt "studio photo of a silver bracelet on white background" \
   --model nano-banana-2 --wait -o ./bracelet.jpg
 
-# --- Video: Seedance 2.0 r2v with two reference images ------------------
-quickdesign video generate --provider seedance \
+# --- Video: Seedance 2.5 with two reference images ----------------------
+quickdesign video generate --provider seedance --model seedance-2.5 \
   --reference-image https://cdn.example.com/bracelet.jpg \
   --reference-image https://cdn.example.com/model.jpg \
   --prompt "@Image2 wearing @Image1, slow catwalk" \
@@ -182,11 +182,11 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `history [--limit]` | List past image jobs |
 | `models` | Discover available image models |
 
-### `video` — Sora 2 / Kling / Seedance 2.0 / UGC
+### `video` — Seedance 2.5 / 2.0 / Flux 3 / Gemini Omni / Kling / UGC
 
 | Command | Notes |
 | --- | --- |
-| `generate --provider <sora2\|kling\|seedance\|ugc> --prompt … [--image \| --reference-image…] [--audio] [--duration] [--aspect-ratio] [--resolution] [--wait] [-o path]` | Start + optional poll + optional save. Seedance 2.0 r2v is activated by `--reference-image` (1+). UGC requires both `--image` and `--audio`. |
+| `generate --provider <sora2\|kling\|seedance\|ugc> --prompt … [--image \| --reference-image…] [--audio] [--duration] [--aspect-ratio] [--resolution] [--wait] [-o path]` | Start + optional poll + optional save. Pass `--model` to pick the model (`seedance-2.5`, `flux-3-t2v`, `flux-3-i2v` and `gemini-omni-video` all use `--provider seedance`). Without `--model`, `--reference-image` (1+) selects Seedance 2.0 r2v. Sora 2 was retired upstream on 2026-09-23. UGC requires both `--image` and `--audio`. |
 | `status <provider> <jobId>` | One-shot status check |
 | `wait <provider> <jobId> [--timeout] [-o path]` | Resume polling on a job started earlier (default timeout 30 min) and optionally download |
 | `history <provider> [--limit] [--status]` | List jobs for a provider |

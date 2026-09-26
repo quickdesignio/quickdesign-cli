@@ -3,7 +3,7 @@ slug: kling-3-pro
 category: video_generate
 provider: fal
 status: budget
-description: Kling 3 Pro. Cinematic motion model. Cheaper than Seedance 2.0 R2V at most durations, but no reference grammar, no audio-continuity primitive, no native voice generation matching Seedance quality. Use as a budget alternative for simple loops / b-roll / non-spoken-script clips, or when user explicitly asks for Kling.
+description: Kling 3 family (Pro / Standard) plus Kling 2.6 Pro and O1 Edit. Cinematic motion models with no reference grammar in the CLI, no audio-continuity primitive, and weaker speech than Seedance. `kling-3-standard` (the CLI default for `--provider kling`) is the budget pick for simple loops, b-roll and non-spoken clips. `kling-3-pro` is the quality tier. Use when the user asks for Kling or when a non-spoken loop needs to be cheap.
 ---
 
 ## When to use
@@ -13,7 +13,7 @@ description: Kling 3 Pro. Cinematic motion model. Cheaper than Seedance 2.0 R2V 
 - User explicitly named Kling
 - Voice continuity / multi-product reference fidelity is NOT required
 
-Don't use for spoken-script UGC — Kling's TTS is weaker than Seedance's native voice and there's no `--reference-audio` continuity. For talking-avatar work always start at Seedance R2V.
+Don't use for spoken-script UGC. Kling's speech is weaker than Seedance's native voice and there's no `--reference-audio` continuity. For talking-avatar work, always start at Seedance 2.5.
 
 ## Hard facts (live)
 
@@ -22,9 +22,10 @@ quickdesign cost kling-3-pro -d 5
 quickdesign video models | jq '.data[] | select(.slug=="kling-3-pro")'
 ```
 
-- **Duration grid**: 3..15s (per-second lookup, see `quickdesign cost kling-3-pro -d <n>`)
-- **Cost**: `duration_lookup` — discrete cost per duration; check before submitting.
-- **Reference grammar**: NONE. Single `--image` input only.
+- **CLI**: `quickdesign video generate --provider kling --image first.png --model kling-3-pro ...`. Without `--model`, the CLI uses `kling-3-standard`. `--image` is required, because the CLI Kling path doesn't do text-to-video and doesn't forward `--reference-*`.
+- **Duration grid**: `kling-3-pro` takes 3..15s (101 cr at 3s, 336 cr at 10s, 504 cr at 15s). `kling-3-standard` takes 3/5/10/15s (30/50/95/140 cr).
+- **Cost**: `duration_lookup`, a discrete cost per duration. Check with `quickdesign cost <slug> -d <n>` before submitting.
+- **Reference grammar**: NONE in the CLI. Single `--image` input only.
 - **Audio**: yes via `generate_audio`, but voice character generally weaker than Seedance for speech.
 
 ## Compact prompt skeleton
@@ -38,9 +39,10 @@ Camera-motion verbs ("slowly zooms in", "pans left", "tracking shot") work bette
 
 ## Sibling models in the Kling family
 
-- `kling-3-standard` — cheaper, simpler animation. Use for loops where Pro's quality bump isn't worth it.
-- `kling-2.6-pro`, `kling-2.1-pro`, `kling-2.1-standard` — older versions, retained for users with prior workflows. Default to `kling-3-*` for new work.
-- `kling-o1-edit` — fixed-cost edit operation (64cr), niche use.
+- `kling-3-standard`: cheaper, simpler animation, and the CLI default. Use it for loops where Pro's quality bump isn't worth the cost (a 10s clip is 95 cr vs 336 cr).
+- `kling-2.6-pro`: older, 5s / 10s only (64 / 100 cr). Kept for users with existing workflows. Default to `kling-3-*` for new work.
+- `kling-o1-edit`: video-to-video edit, 64 cr flat, niche use.
+- `kling-2.1-*` are no longer in the registry.
 
 Compare via `quickdesign cost --category video | grep kling`.
 
@@ -52,5 +54,7 @@ Compare via `quickdesign cost --category video | grep kling`.
 
 ## Cross-references
 
-- For talking-script UGC use Seedance R2V instead → `./seedance-2.0-r2v.md`
+- For talking-script UGC use Seedance 2.5 instead → `./seedance-2.5.md`
+- Cinematic single shot / text-to-video → `./flux-3.md`
+- Cheap image→video with synced sound effects → `./gemini-omni-video.md`
 - Voice continuity strategies → `../references/voice-continuity.md`

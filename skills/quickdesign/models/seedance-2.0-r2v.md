@@ -2,15 +2,20 @@
 slug: seedance-2.0-r2v
 category: video_generate
 provider: fal | kie
-status: primary
-description: Seedance 2.0 Reference-to-Video. Universal default for UGC / talking-avatar / promo / explainer work — single AND multi-segment, any duration in the 4–15s grid. Supports labeled reference grammar (@Image1 / @Audio1 / @Video1), repeatable --reference-image for multi-product, and --reference-audio voice continuity across segments. The skill assumes this model unless registry has retired it.
+status: fallback
+description: Seedance 2.0 Reference-to-Video. Former default, now the FALLBACK to `seedance-2.5`. Pick it when a shot needs more than 4 reference images (takes up to 9), native 4K, or the lowest cost per second (1080p = 25 cr/s vs 2.5's 70). Same labeled reference grammar (@Image1 / @Audio1 / @Video1) and --reference-audio voice continuity, but a hard 15s cap per segment. It's also what the CLI silently picks when `--provider seedance` gets reference flags without `--model`.
 ---
 
 ## When to use
 
-**Default for any spoken-script video** — UGC, talking avatar, promo, explainer, multi-scene ad. Don't downgrade to `seedance-2.0-i2v` because the script is "short enough" — R2V handles 4–15s single-shot just as well as multi-segment, with strictly more capability. See `../SKILL.md` cardinal rule #0.
+The default is now `seedance-2.5` (`./seedance-2.5.md`). Use 2.0 R2V instead when:
 
-Switch off R2V only on **explicit user opt-in** (`"use Sora 2"`, `"use Kling"`) or if R2V is no longer in the registry.
+- **More than 4 reference images** are needed in one shot (2.0 R2V takes up to 9; 2.5 takes 4)
+- **Native 4K** output is required (2.5 tops out at 1080p)
+- **Budget** is the driver: 12s@1080p = 300 cr here vs 840 cr on 2.5 at 1080p (336 cr at 720p)
+- The user **explicitly asks** for Seedance 2.0
+
+It's still R2V, not i2v. Don't drop to `seedance-2.0-i2v` because the task looks "simple". See `../SKILL.md` cardinal rule #0.
 
 ## Hard facts (live)
 
@@ -20,9 +25,11 @@ quickdesign video models | jq '.data[] | select(.slug=="seedance-2.0-r2v")'
 ```
 
 Known behavior:
-- **Duration grid**: integer `4..15` seconds (plus `auto`). No 5/10/15 rounding — pick the tightest value that fits the segment script.
-- **Resolutions**: `480p`, `720p`, `1080p`. Default to `1080p` for all UGC; `720p` is meaningfully cheaper but soft on faces.
-- **Aspect ratios**: `9:16`, `16:9`, `1:1`, `4:3`, `3:4`, `21:9`.
+- **Selecting it**: `--provider seedance --model seedance-2.0-r2v` (explicit is better; omitting `--model` with reference flags also lands here).
+- **Duration grid**: integer `4..15` seconds (plus `auto`). **15s cap per segment**, so scripts longer than that need multi-segment + `--reference-audio`. Pick the tightest value that fits the segment script.
+- **Resolutions**: `480p` (5 cr/s), `720p` (11 cr/s), `1080p` (25 cr/s), `4k` (50 cr/s). Default to `1080p` when you pick 2.0 for quality/budget; `720p` is cheaper but soft on faces.
+- **Aspect ratios**: `9:16`, `16:9`, `1:1`, `4:3`, `3:4`, `21:9`, `auto`.
+- **Reference caps (registry)**: 9 images, 3 videos, 1 audio.
 - **Native audio**: on by default. Voice character is generated unless `--reference-audio` locks it to a prior segment.
 
 ## Reference grammar
@@ -32,7 +39,7 @@ Seedance reads the inputs as positional labels:
 | Flag | Reference label |
 |---|---|
 | `--reference-image <url\|path>` (repeatable) | `@Image1`, `@Image2`, ... |
-| `--reference-audio <url\|path>` (repeatable, max 3) | `@Audio1`, `@Audio2`, `@Audio3` |
+| `--reference-audio <url\|path>` (registry caps 2.0 R2V at 1) | `@Audio1` |
 | `--reference-video <url\|path>` (repeatable) | `@Video1`, `@Video2`, ... |
 
 **Don't re-describe what the references already show.** Verbose verbatim re-descriptions dilute the reference anchor → cross-segment drift in face / hair / wardrobe / setting / smaller props.
@@ -93,12 +100,13 @@ Vertical 9:16 format.
 
 4. **Camera-motion verbs cause defects.** Don't write "slowly zooms in", "pans across", "static hold". Seedance produces natural micro-motion (breathing, gestures, head turns) on its own — explicit verbs override that with mechanical-feeling motion. See `../references/first-frame-not-camera-motion.md`.
 
-5. **Fine print / engravings drop.** When the product has visible text (brand wordmark, hallmarks like "925", model number, care label), Seedance has no obligation to preserve it pixel-faithfully across motion. For ads where label fidelity matters: ensure the source banana edit (or first-frame reference) preserves the text legibly first; mention the specific text by name in the prompt; check the rendered first/last frame.
+5. **Fine print / engravings drop.** When the product has visible text (brand wordmark, hallmarks like "925", model number, care label), Seedance has no obligation to preserve it pixel-faithfully across motion. For ads where label fidelity matters: ensure the source reference edit (or first-frame reference) preserves the text legibly first; mention the specific text by name in the prompt; check the rendered first/last frame.
 
-6. **BFF cost inconsistency.** The registry says `per_second × duration` (e.g. 12s × 21cr/s = 252cr at 1080p). The current BFF runtime occasionally falls back to legacy `(duration/5) × 200 = 480cr` when the registry cache is cold. Compare your job's actual `token_cost` via `quickdesign video status seedance <reqId>` against the registry compute. This is a known BFF bug, not a CLI bug.
+6. **Input video is billed too.** With `--reference-video`, 2.0 R2V bills input seconds + output seconds. Check `quickdesign cost` before chaining long reference clips.
 
 ## Cross-references
 
+- Current default (≤4 refs, up to 30s per segment) → `./seedance-2.5.md`
 - Multi-product / multi-angle reference usage → `../references/multi-reference-pattern.md`
 - Voice continuity across segments → `../references/voice-continuity.md`
 - Music + subtitle suppression (minimal directive) → `../references/no-music-no-subtitles.md`
