@@ -185,7 +185,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
 - Don't propose any TTS + voice-clone + lipsync chain — retired in this skill. Use `--reference-audio` instead.
 - **Don't omit `--model seedance-2.5`.** The CLI's implicit default is `seedance-2.0-r2v` — you'd silently get the old model and its 15s cap.
 - **Don't combine `--image` with `--reference-*` on 2.5** — first-frame mode and reference mode are mutually exclusive. For UGC always use reference mode.
-- **Don't run 2.5 with no image and no reference from the CLI.** Prompt-only 2.5 is routed to a legacy text-to-video model while billed at 2.5 rates. Give it at least one `--reference-image`, or use `flux-3-t2v` for pure text-to-video.
+- **Don't run 2.5 with no image and no reference on CLI ≤ 0.10.0.** There, prompt-only 2.5 is routed to a legacy text-to-video model while billed at 2.5 rates (fixed in 0.11.0). On an older CLI, give it at least one `--reference-image`, or use `flux-3-t2v` for pure text-to-video.
 - **Don't pass more than 4 `--reference-image` to 2.5.** If the shot truly needs more anchors, switch to `seedance-2.0-r2v` (up to 9).
 - **Don't skip the `--reference-audio` step on multi-segment videos.** It's not optional — Seedance picks a different voice per call without it; cuts sound like 2-3 different people.
 - Don't cram more than ~2 words per second of duration into a segment (≈60 words max in a 30s segment) — pacing collapses to chipmunk speed.

@@ -113,8 +113,8 @@ Examples
   $ quickdesign spy brands --search Ottasilver --human
   $ quickdesign spy brand-ads <id> --status active --sort most_impressions
   $ quickdesign image generate -p "studio photo of a silver bracelet" --wait -o ./out.jpg
-  $ quickdesign video generate --provider sora2 -p "a cat on the beach" --duration 4 --wait -o ./cat.mp4
-  $ quickdesign video generate --provider seedance \\
+  $ quickdesign video generate --provider seedance --model flux-3-t2v -p "a cat on the beach" --duration 5 --wait -o ./cat.mp4
+  $ quickdesign video generate --provider seedance --model seedance-2.5 \\
       --reference-image https://cdn/bracelet.jpg --reference-image https://cdn/model.jpg \\
       -p "@Image2 wearing @Image1" --wait -o ./r2v.mp4
   $ quickdesign brand dna https://kizik.com
