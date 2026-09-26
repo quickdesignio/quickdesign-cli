@@ -29,7 +29,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 
    ⚠️ **Stay in reference mode; don't drift to i2v.** Animating a single image still means one `--reference-image` on Seedance 2.5, not `--image` and not `seedance-2.0-i2v`. The reasoning chain *"user wants to animate static images → image-to-video → i2v"* is the silent regression this rule exists to prevent. Reference mode keeps `@Image1` grammar, multi-ref and `--reference-audio`. On 2.5, `--image` (first-frame mode) and `--reference-*` are mutually exclusive.
 
-   ⚠️ **Never send Seedance 2.5 a prompt with no image and no reference through the CLI.** It gets routed to the legacy Seedance 1.0 text-to-video model but billed at 2.5 rates. Use `flux-3-t2v` for pure text-to-video.
+   ⚠️ **Prompt-only Seedance 2.5 (no image, no reference) needs CLI ≥ 0.11.0.** Older CLIs route it to the legacy Seedance 1.0 text-to-video model but bill at 2.5 rates. Check `quickdesign --version` first. On an older CLI, give 2.5 at least one reference or use `flux-3-t2v` for pure text-to-video.
 
 1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts, and pass EVERY relevant photo as a separate reference.** Both the image-edit models (`gpt-image-2-5-sunburst-i2i` up to 10, Nano Banana) and Seedance 2.5 (video, up to 4) accept multiple `--reference-image` flags. If the user uploaded a product from two angles, pass both — describing the second one in prose is a regression. Don't re-describe the person, wardrobe, or product in words; that competes with the reference image and causes drift.
 

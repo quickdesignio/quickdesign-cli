@@ -66,7 +66,7 @@ The MCP tools keep legacy defaults, so pass the model explicitly:
 
 - `quickdesign_video_generate` with no `model` falls back to `seedance-2.0-r2v`. Pass `model: "seedance-2.5"` for the default video model (`../models/seedance-2.5.md`).
 - `quickdesign_image_generate` defaults to `nano-banana-2`. Pass `model: "gpt-image-2-5-sunburst-i2i"` plus `reference_image_urls` for the default edit path (`../models/gpt-image-2-5-sunburst-i2i.md`). Keep `nano-banana-2` for 4:5 deliverables.
-- MCP routes any active registry slug (`flux-3-t2v` / `flux-3-i2v`, `gemini-omni-video`, `kling-*`) and rejects inputs the model can't take before any credits are spent. Prompt-only Seedance 2.5 works on MCP (it's routed to the right endpoint), unlike the CLI.
+- MCP routes any active registry slug (`flux-3-t2v` / `flux-3-i2v`, `gemini-omni-video`, `kling-*`) and rejects inputs the model can't take before any credits are spent. Prompt-only Seedance 2.5 works on MCP (it's routed to the right endpoint), and on CLI ≥ 0.11.0.
 - Sora 2 is retired (2026-09-23): `sora2-*` slugs come back as an unknown model. Offer Flux 3 for cinematic single shots.
 
 ## What still needs the CLI

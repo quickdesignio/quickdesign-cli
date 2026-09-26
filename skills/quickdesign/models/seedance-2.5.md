@@ -93,7 +93,7 @@ See `../references/voice-continuity.md` and `../pipelines/ugc-video.md`.
 
 ## Gotchas / failure modes
 
-1. **Prompt-only (no `--image`, no `--reference-*`) through the CLI is broken for 2.5.** The CLI sends reference-free jobs to `/start-text-to-video`, which doesn't serve 2.5. It falls back to the legacy Seedance 1.0 text-to-video model but still bills at 2.5 rates. Always give 2.5 at least one reference. For pure text-to-video, use `flux-3-t2v` (`./flux-3.md`).
+1. **Prompt-only (no `--image`, no `--reference-*`) needs CLI ≥ 0.11.0.** CLIs up to 0.10.0 send reference-free jobs to `/start-text-to-video`, which doesn't serve 2.5. There it falls back to the legacy Seedance 1.0 text-to-video model but still bills at 2.5 rates. Check `quickdesign --version` first. On an older CLI, give 2.5 at least one reference, or use `flux-3-t2v` (`./flux-3.md`) for pure text-to-video.
 2. **More than 4 reference images.** The registry caps 2.5 at 4. For product-front + product-side + product-detail + avatar + scene (5 or more), either merge the product angles into one reference edit first (`./gpt-image-2-5-sunburst-i2i.md`) or switch to `seedance-2.0-r2v`.
 3. **Auto-layered music bed and hallucinated burned subtitles.** Same as 2.0. Keep `No music score.` and `No subtitles or on-screen text.` See `../references/no-music-no-subtitles.md`. For captions, use `quickdesign video subtitle` after generation.
 4. **Camera-motion verbs cause defects.** Don't write "slowly zooms in" or "static hold". See `../references/first-frame-not-camera-motion.md`.

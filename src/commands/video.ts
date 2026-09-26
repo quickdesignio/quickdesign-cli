@@ -2,9 +2,12 @@
  * `quickdesign video generate|status|wait|history|models`
  *
  * Wraps four BFF provider families:
- *   sora2    → /api/async-sora2-video/*
+ *   sora2    → /api/async-sora2-video/*      (retired upstream 2026-09-23 —
+ *                                             status/history/wait only)
  *   kling    → /api/async-kling-video/*
- *   seedance → /api/async-seedance-video/*   (also exposes Seedance 2.0 r2v)
+ *   seedance → /api/async-seedance-video/*   (Seedance 2.5 / 2.0, and every
+ *                                             other family the BFF routes
+ *                                             there: flux-3-*, gemini-omni-video)
  *   ugc      → /api/async-ugc-video/*
  *
  * Subtitle subcommands live in video-subtitle.ts, upscale in video-upscale.ts;
@@ -68,18 +71,37 @@ function providerRoutes(provider: Provider): {
   }
 }
 
-function buildSeedanceBody(opts: VideoGenerateOpts): Record<string, unknown> {
+/**
+ * `/start-text-to-video` submits through the fal SDK and only knows the fal
+ * text-to-video slugs (`seedance-2.0-t2v`, `flux-3-t2v`); anything else falls
+ * back to the legacy Seedance 1.0 model there while still being billed at the
+ * requested model's rate. The `-t2v` suffix is the registry's naming contract
+ * for those rows, so it is what decides the route.
+ */
+export function isTextToVideoSlug(model: string): boolean {
+  return model.endsWith('-t2v');
+}
+
+/**
+ * Pick the Seedance-family route and body together so they can't disagree.
+ *   refs  → i2v  (start-image-to-video accepts image_urls[] / video_urls[] / audio_urls[])
+ *   image → i2v  (single imageUrl)
+ *   none  → t2v for `*-t2v` slugs; otherwise i2v, which serves a bare prompt
+ *           for models that support it (seedance-2.5 on kie) and rejects the
+ *           rest with a 400 before any credits are consumed.
+ */
+export function buildSeedanceRequest(opts: VideoGenerateOpts): {
+  route: 'i2v' | 't2v';
+  body: Record<string, unknown>;
+} {
   const refImages = toArray(opts.referenceImage);
   const refVideos = toArray(opts.referenceVideo);
   const refAudios = toArray(opts.referenceAudio);
-  const hasRefs = refImages.length > 0 || refVideos.length > 0;
+  // Audio alone is a valid reference set for the BFF's i2v route.
+  const hasRefs = refImages.length > 0 || refVideos.length > 0 || refAudios.length > 0;
 
-  // Seedance 2.0 route selection:
-  //   refs  → r2v  (start-image-to-video accepts image_urls[] / video_urls[] / audio_urls[])
-  //   image → i2v  (single imageUrl)
-  //   none  → t2v  (start-text-to-video)
   if (hasRefs) {
-    return {
+    return { route: 'i2v', body: {
       prompt: opts.prompt,
       model: opts.model ?? 'seedance-2.0-r2v',
       imageUrl: opts.image,
@@ -93,10 +115,10 @@ function buildSeedanceBody(opts: VideoGenerateOpts): Record<string, unknown> {
       aspect_ratio: opts.aspectRatio,
       resolution: opts.resolution,
       generate_audio: opts.generateAudio,
-    };
+    } };
   }
   if (opts.image) {
-    return {
+    return { route: 'i2v', body: {
       prompt: opts.prompt,
       imageUrl: opts.image,
       model: opts.model ?? 'seedance-2.0-i2v',
@@ -104,13 +126,21 @@ function buildSeedanceBody(opts: VideoGenerateOpts): Record<string, unknown> {
       aspect_ratio: opts.aspectRatio,
       resolution: opts.resolution,
       generate_audio: opts.generateAudio,
-    };
+    } };
   }
+  const model = opts.model ?? 'seedance-2.0-t2v';
   return {
-    prompt: opts.prompt,
-    model: opts.model ?? 'seedance-2.0-t2v',
-    duration: opts.duration,
-    aspect_ratio: opts.aspectRatio,
+    route: isTextToVideoSlug(model) ? 't2v' : 'i2v',
+    body: {
+      prompt: opts.prompt,
+      model,
+      duration: opts.duration,
+      aspect_ratio: opts.aspectRatio,
+      // Both routes read these; the t2v body used to drop them, so
+      // `--resolution` and `--no-generate-audio` were silently ignored.
+      resolution: opts.resolution,
+      generate_audio: opts.generateAudio,
+    },
   };
 }
 
@@ -119,12 +149,7 @@ function toArray(v: string | string[] | undefined): string[] {
   return Array.isArray(v) ? v : [v];
 }
 
-function needsT2v(provider: Provider, hasImage: boolean, hasRefs: boolean): boolean {
-  if (hasImage || hasRefs) return false;
-  return provider === 'sora2' || provider === 'seedance';
-}
-
-interface VideoGenerateOpts {
+export interface VideoGenerateOpts {
   provider: Provider;
   prompt: string;
   image?: string;
@@ -143,19 +168,19 @@ interface VideoGenerateOpts {
 }
 
 export function registerVideoCommands(program: Command): void {
-  const video = program.command('video').description('AI video generation (Sora 2, Kling, Seedance, UGC)');
+  const video = program.command('video').description('AI video generation (Seedance, Flux 3, Gemini Omni, Kling, UGC)');
 
   video
     .command('generate')
     .description('Start a video generation job')
-    .requiredOption('--provider <name>', `Provider: ${PROVIDERS.join(' | ')}`)
+    .requiredOption('--provider <name>', 'Provider: seedance | kling | ugc (seedance also runs flux-3-* and gemini-omni-video via --model; sora2 is retired)')
     .requiredOption('-p, --prompt <text>', 'Prompt')
     .option('--image <url|path>', 'Source image URL or local path (image-to-video modes; auto-uploaded)')
     .option('--audio <url|path>', 'Audio URL or local path (ugc only, required; auto-uploaded)')
-    .option('--reference-image <url|path>', 'Reference image URL or local path (Seedance 2.0 r2v; repeatable; auto-uploaded)', collect, [] as string[])
-    .option('--reference-video <url|path>', 'Reference video URL or local path (Seedance 2.0 r2v; repeatable; auto-uploaded)', collect, [] as string[])
-    .option('--reference-audio <url|path>', 'Reference audio URL or local path (Seedance 2.0 r2v voice continuity; repeatable max 3, mp3/wav 2-15s ≤15MB; auto-uploaded)', collect, [] as string[])
-    .option('--model <slug>', 'Override model slug (provider-specific)')
+    .option('--reference-image <url|path>', 'Reference image URL or local path (Seedance 2.5 max 4 / 2.0 r2v max 9; repeatable; auto-uploaded)', collect, [] as string[])
+    .option('--reference-video <url|path>', 'Reference video URL or local path (Seedance 2.5 / 2.0 r2v; repeatable max 3; auto-uploaded)', collect, [] as string[])
+    .option('--reference-audio <url|path>', 'Reference audio URL or local path (Seedance voice continuity; repeatable, mp3/wav ≤15MB; auto-uploaded)', collect, [] as string[])
+    .option('--model <slug>', 'Model slug, e.g. seedance-2.5, flux-3-t2v, gemini-omni-video, kling-3-pro. Without it seedance falls back to the 2.0 models (see `video models`)')
     .option('--duration <n>', 'Duration in seconds', (v) => parseInt(v, 10))
     .option('--aspect-ratio <ratio>', 'Aspect ratio (9:16 | 16:9 | 1:1 | ...)')
     .option('--resolution <res>', 'Resolution (480p | 720p | 1080p | auto)')
@@ -168,6 +193,14 @@ export function registerVideoCommands(program: Command): void {
       try {
         if (!PROVIDERS.includes(opts.provider)) {
           fail(`Unknown provider: ${opts.provider}. Expected one of ${PROVIDERS.join(', ')}.`, 2);
+        }
+        if (opts.provider === 'sora2') {
+          fail(
+            'Sora 2 was retired upstream on 2026-09-23. Use --provider seedance --model seedance-2.5 ' +
+              '(spoken / UGC) or --model flux-3-t2v / flux-3-i2v (cinematic single shot). ' +
+              '`video status|wait|history sora2` still work for existing jobs.',
+            2
+          );
         }
 
         // Auto-upload local file paths and replace with the resulting public URL.
@@ -202,7 +235,6 @@ export function registerVideoCommands(program: Command): void {
 
         const routes = providerRoutes(opts.provider);
         const hasImage = Boolean(opts.image);
-        const hasRefs = toArray(opts.referenceImage).length > 0 || toArray(opts.referenceVideo).length > 0;
 
         let url: string;
         let body: Record<string, unknown>;
@@ -220,17 +252,9 @@ export function registerVideoCommands(program: Command): void {
             model: opts.model,
           };
         } else if (opts.provider === 'seedance') {
-          url = needsT2v(opts.provider, hasImage, hasRefs) ? routes.t2v! : routes.i2v!;
-          body = buildSeedanceBody(opts);
-        } else if (opts.provider === 'sora2') {
-          url = needsT2v(opts.provider, hasImage, hasRefs) ? routes.t2v! : routes.i2v!;
-          body = {
-            prompt: opts.prompt,
-            imageUrl: opts.image,
-            duration: opts.duration?.toString(),
-            aspect_ratio: opts.aspectRatio,
-            resolution: opts.resolution,
-          };
+          const seedance = buildSeedanceRequest(opts);
+          url = seedance.route === 't2v' ? routes.t2v! : routes.i2v!;
+          body = seedance.body;
         } else {
           // kling — only i2v exposed in this CLI version
           if (!hasImage) fail('Kling requires --image. (Text-to-video not supported by this endpoint.)', 2);

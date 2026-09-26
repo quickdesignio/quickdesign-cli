@@ -8,7 +8,7 @@ description: FLUX.3 video (Black Forest Labs, via fal.ai). Cinematic single shot
 
 ## When to use
 
-- **Pure text-to-video** with no reference image. This is the reliable CLI path. Prompt-only Seedance 2.5 through the CLI is broken (see `./seedance-2.5.md` gotcha #1).
+- **Pure text-to-video** with no reference image, especially on CLI ≤ 0.10.0, where prompt-only Seedance 2.5 is misrouted (see `./seedance-2.5.md` gotcha #1).
 - A cinematic single shot where camera direction matters (tracking shot, crane, slow push-in). Unlike Seedance, Flux follows explicit camera verbs.
 - The user asks for "Sora" or "Sora quality". Sora 2 is retired, so say that and offer Flux 3 for cinematic single shots or Seedance 2.5 for spoken UGC.
 
