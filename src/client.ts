@@ -132,8 +132,10 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
   }
 
   if (!res.ok) {
-    const message = (parsed as { error?: string } | null)?.error
-      ?? `${res.status} ${res.statusText}`;
+    // Legacy routes answer `{ error: "…" }`; /api/v1-shaped ones (e.g.
+    // /api/templates) answer `{ error: { code, message } }`.
+    const err = (parsed as { error?: string | { message?: string } } | null)?.error;
+    const message = (typeof err === 'string' ? err : err?.message) ?? `${res.status} ${res.statusText}`;
     throw new ApiError(message, res.status, parsed, path);
   }
 

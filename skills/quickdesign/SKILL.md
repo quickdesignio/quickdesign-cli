@@ -142,6 +142,8 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Brand not in Spy Brands library / 0 search results | `references/spybrands-add-on-miss.md` |
 | User is on claude.ai (web) and asks about QuickDesign | `references/connecting-claude-ai-via-mcp.md` |
 | Publish designs to Meta as ads / analyze own Meta ad performance / moderate FB+IG comments | `references/deploy-meta.md` |
+| Ad creatives from a product page (one concept, or all 16 with Advantage+) | `quickdesign ad-creator concepts` → `ad-creator generate` / `advantage-plus` with `--product-url` (below). Always pass the user's `--brand-kit <uuid>` when they have one |
+| "Use this template" / find a layout or style to copy | `quickdesign template filters` → `template list --tag … --category …`. The template id shown on hover in the app is `id` here. Pass its `image_url` to `image generate --reference-image` |
 
 **By job phase:**
 
@@ -218,6 +220,17 @@ quickdesign video generate --provider seedance --model flux-3-t2v \
 quickdesign video subtitle ./final.mp4 \
   --style tiktok --language en \
   -o ./final-subbed.mp4 --wait
+
+# Smart Ad Creator — the product page is analyzed server-side (image, name, features, audience)
+quickdesign ad-creator generate --product-url https://shop.example/p/mug --concept <slug> \
+  --brand-kit <uuid> -o ./ad.jpg
+# No product page? Give the details yourself (advantage-plus also needs --target-audience)
+quickdesign ad-creator advantage-plus --product-image ./mug.jpg --product-name "Ceramic Mug" \
+  --target-audience "coffee lovers 25-40" --concept <slug> --concept <slug> --wait -o ./ads
+
+# Templates (the approved library at app.quickdesign.io/templates — never other users' designs)
+quickdesign template filters --human                 # categories + tags
+quickdesign template list --tag Trending --category "Static Ads" --limit 10 --human
 ```
 
 ## File index

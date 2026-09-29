@@ -8,8 +8,14 @@
  * request kicks off up to 16 concept jobs, returns `{ batch_id, jobs[] }`,
  * and `--wait` polls the batch-status endpoint and downloads each completed
  * job's first image to `<output-dir>/<concept>.jpg`.
+ *
+ * Product input: `--product-url` is analyzed server-side (image, name,
+ * features, audience); `--product-image` / `--product-name` /
+ * `--target-audience` override or replace it. `--brand-kit` applies the kit's
+ * colors, fonts, voice and logo. (CLI ≤ 0.11 sent only the URL + kit id, which
+ * the BFF ignored until it learned to expand them.)
  */
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import ora from 'ora';
@@ -17,6 +23,7 @@ import { request } from '../client.js';
 import { emitJson, fail, note } from '../utils/output.js';
 import { pollUntilDone } from '../utils/poll.js';
 import { downloadTo } from '../utils/download.js';
+import { ensureRemoteUrl, looksLikeLocalPath } from '../utils/upload.js';
 
 interface StartResponse {
   success?: boolean;
@@ -68,6 +75,69 @@ interface BatchStatusResponse {
   }>;
 }
 
+/**
+ * The start request analyzes the product page before creating the job
+ * (Playwright + LLM, up to ~2.5 min server-side), so it gets more than the
+ * client's 120s default.
+ */
+const START_TIMEOUT_MS = 280_000;
+
+interface ProductOpts {
+  productUrl?: string;
+  productImage?: string;
+  productName?: string;
+  targetAudience?: string;
+  brandKit?: string;
+  businessType?: string;
+}
+
+function addProductOptions(cmd: Command): Command {
+  return cmd
+    .option('--product-url <url>', 'Product page URL — analyzed for image, name, features and audience')
+    .option('--product-image <url|path>', 'Product image URL or local path (auto-uploaded); overrides the one found on the page')
+    .option('--product-name <name>', 'Product name (overrides analysis)')
+    .option('--target-audience <text>', 'Target audience (overrides analysis)')
+    .option('--brand-kit <id>', 'Brand kit UUID — applies its colors, fonts, voice and logo')
+    .addOption(
+      new Option('--business-type <type>', 'Business type (default: detected from the page, else product)').choices(['product', 'saas']),
+    );
+}
+
+/** Product fields for generate-async / generate-advantage-plus. */
+async function productBody(opts: ProductOpts, requireDetails: boolean): Promise<Record<string, unknown>> {
+  if (!opts.productUrl && !opts.productImage) fail('Pass --product-url, or --product-image with the product details.', 2);
+  if (!opts.productUrl && requireDetails && (!opts.productName || !opts.targetAudience)) {
+    fail('Without --product-url, pass --product-name and --target-audience too.', 2);
+  }
+  const productImage =
+    opts.productImage && looksLikeLocalPath(opts.productImage) ? await ensureRemoteUrl(opts.productImage) : opts.productImage;
+  return {
+    productUrl: opts.productUrl,
+    productImage,
+    productName: opts.productName,
+    targetAudience: opts.targetAudience,
+    brand_kit_id: opts.brandKit,
+    // With a URL the server detects it; without one the controller still needs a value.
+    businessType: opts.businessType ?? (opts.productUrl ? undefined : 'product'),
+  };
+}
+
+/** POST a start request with a spinner — product analysis makes it slow. */
+async function startJob<T>(path: string, body: Record<string, unknown>, analyzing: boolean): Promise<T> {
+  const spin = ora({
+    text: analyzing ? 'Analyzing the product page and starting the job…' : 'Starting the job…',
+    stream: process.stderr,
+  }).start();
+  try {
+    const r = await request<T>(path, { method: 'POST', body, signal: AbortSignal.timeout(START_TIMEOUT_MS) });
+    spin.stop();
+    return r;
+  } catch (err) {
+    spin.stop();
+    throw err;
+  }
+}
+
 function firstUrl(r: StatusResponse | ResultResponse): string | undefined {
   const img = r.images?.[0];
   return r.imageUrl ?? img?.url ?? img?.imageUrl ?? img?.storage_url;
@@ -114,36 +184,28 @@ export function registerAdCreatorCommands(program: Command): void {
       } catch (err) { fail(err); }
     });
 
-  ad
-    .command('generate')
-    .description('Generate a single-concept ad creative')
-    .requiredOption('--product-url <url>', 'Product page URL')
-    .requiredOption('--concept <slug>', 'Concept slug (see `ad-creator concepts`)')
-    .option('--brand-kit <id>', 'Brand kit UUID (optional)')
-    .option('--business-type <type>', 'Business type (e.g. dtc, saas)')
+  addProductOptions(
+    ad
+      .command('generate')
+      .description('Generate a single-concept ad creative')
+      .requiredOption('--concept <slug>', 'Concept slug (see `ad-creator concepts`)'),
+  )
     .option('--wait', 'Block until the job completes', false)
     .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 600_000)
     .option('-o, --output <path>', 'Save the image to this path (implies --wait)')
-    .action(async (opts: {
-      productUrl: string;
+    .action(async (opts: ProductOpts & {
       concept: string;
-      brandKit?: string;
-      businessType?: string;
       wait?: boolean;
       timeout?: number;
       output?: string;
     }) => {
       try {
         const shouldWait = opts.wait === true || Boolean(opts.output);
-        const start = await request<StartResponse>('/api/smart-ad-creator/generate-async', {
-          method: 'POST',
-          body: {
-            productUrl: opts.productUrl,
-            concept: opts.concept,
-            brand_kit_id: opts.brandKit,
-            businessType: opts.businessType,
-          },
-        });
+        const start = await startJob<StartResponse>(
+          '/api/smart-ad-creator/generate-async',
+          { ...(await productBody(opts, false)), concept: opts.concept },
+          Boolean(opts.productUrl),
+        );
         const requestId = start.request_id ?? start.requestId;
         if (!requestId) fail(`No request_id in start response: ${JSON.stringify(start)}`);
 
@@ -183,33 +245,28 @@ export function registerAdCreatorCommands(program: Command): void {
       } catch (err) { fail(err); }
     });
 
-  ad
-    .command('advantage-plus')
-    .description('Fan out 16 concepts in parallel (batch job)')
-    .requiredOption('--product-url <url>', 'Product page URL')
-    .option('--brand-kit <id>', 'Brand kit UUID')
-    .option('--business-type <type>', 'Business type')
+  addProductOptions(
+    ad
+      .command('advantage-plus')
+      .description('Fan out 16 concepts in parallel (batch job)'),
+  )
+    .option('--concept <slug>', 'Only these concepts (repeatable; default: all 16)', (v: string, prev: string[]) => [...prev, v], [] as string[])
     .option('--wait', 'Block until all batch jobs complete', false)
     .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 900_000)
     .option('-o, --output <dir>', 'Save each completed image to <dir>/<concept>.jpg (implies --wait)')
-    .action(async (opts: {
-      productUrl: string;
-      brandKit?: string;
-      businessType?: string;
+    .action(async (opts: ProductOpts & {
+      concept: string[];
       wait?: boolean;
       timeout?: number;
       output?: string;
     }) => {
       try {
         const shouldWait = opts.wait === true || Boolean(opts.output);
-        const start = await request<AdvantagePlusStart>('/api/smart-ad-creator/generate-advantage-plus', {
-          method: 'POST',
-          body: {
-            productUrl: opts.productUrl,
-            brand_kit_id: opts.brandKit,
-            businessType: opts.businessType,
-          },
-        });
+        const start = await startJob<AdvantagePlusStart>(
+          '/api/smart-ad-creator/generate-advantage-plus',
+          { ...(await productBody(opts, true)), concepts: opts.concept.length ? opts.concept : undefined },
+          Boolean(opts.productUrl),
+        );
 
         if (!start.batch_id) fail(`No batch_id in response: ${JSON.stringify(start)}`);
 

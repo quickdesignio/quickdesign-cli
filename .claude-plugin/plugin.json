@@ -1,6 +1,6 @@
 {
   "name": "quickdesign",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "AI media generation skill for the QuickDesign CLI. Seedance 2.5 (default for UGC / talking-avatar / promo, up to 30s per segment), Seedance 2.0 R2V, GPT Image 2.5 Sunburst (default multi-ref image edit), Nano Banana 2 / Pro / Lite, Flux 3, Gemini Omni Video, Kling, video upscale. Multi-segment voice continuity, multi-product reference composition, anatomy self-check, model-agnostic concepts + per-model reference cards.",
   "icon": "./icon.svg",
   "author": {
