@@ -16,6 +16,7 @@ import { registerVideoCommands } from './commands/video.js';
 import { registerBrandCommands } from './commands/brand.js';
 import { registerAdCreatorCommands } from './commands/ad-creator.js';
 import { registerDesignCommands } from './commands/design.js';
+import { registerTemplateCommands } from './commands/template.js';
 import { registerMetaCommands } from './commands/meta.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerCostCommand } from './commands/cost.js';
@@ -118,7 +119,8 @@ Examples
       --reference-image https://cdn/bracelet.jpg --reference-image https://cdn/model.jpg \\
       -p "@Image2 wearing @Image1" --wait -o ./r2v.mp4
   $ quickdesign brand dna https://kizik.com
-  $ quickdesign ad-creator advantage-plus --product-url https://kizik.com/products/bowen --wait -o ./ads
+  $ quickdesign ad-creator advantage-plus --product-url https://kizik.com/products/bowen --brand-kit <uuid> --wait -o ./ads
+  $ quickdesign template list --tag Trending --limit 10 --human
   $ quickdesign design list --limit 10
   $ quickdesign meta accounts --human
   $ quickdesign meta radar --account act_123 --compute --human
@@ -141,6 +143,7 @@ registerVideoCommands(program);
 registerBrandCommands(program);
 registerAdCreatorCommands(program);
 registerDesignCommands(program);
+registerTemplateCommands(program);
 registerMetaCommands(program);
 registerInitCommand(program);
 registerCostCommand(program);

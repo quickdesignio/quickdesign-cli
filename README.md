@@ -94,6 +94,9 @@ quickdesign ad-creator advantage-plus \
   --product-url https://kizik.com/products/bowen-black --wait -o ./ads
 ls ./ads/   # one .jpg per completed concept
 
+# --- Templates ----------------------------------------------------------
+quickdesign template list --tag Trending --limit 10 --human
+
 # --- Brand DNA (Claude-streamed) ----------------------------------------
 quickdesign brand dna https://kizik.com
 
@@ -211,12 +214,24 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | --- | --- |
 | `concepts [--human]` | List available concept slugs |
 | `analyze <product-url>` | Extract product name, images, features, audience |
-| `generate --product-url --concept <slug> [--brand-kit] [--wait] [-o path]` | Single-concept async job |
-| `advantage-plus --product-url [--brand-kit] [--wait] [-o dir]` | Fan out 16 concepts. With `-o <dir>`, every completed concept is saved to `<dir>/<concept>.jpg` |
+| `generate --concept <slug> --product-url <url> [--brand-kit <uuid>] [--wait] [-o path]` | Single-concept async job. The product page is analyzed server-side (image, name, features, audience); the brand kit applies its colors, fonts, voice and logo |
+| `advantage-plus --product-url <url> [--concept <slug>…] [--brand-kit <uuid>] [--wait] [-o dir]` | Fan out all 16 concepts, or only the repeated `--concept`s. With `-o <dir>`, every completed concept is saved to `<dir>/<concept>.jpg` |
+| _product flags (both)_ | `--product-image <url\|path>` (local files auto-upload), `--product-name`, `--target-audience` override the analysis, or replace it when there's no `--product-url` (then `advantage-plus` needs name + audience). `--business-type product\|saas` (default: detected) |
 | `status <requestId>` | One-shot status check |
 | `wait <requestId> [--timeout] [-o path]` | Resume polling on a single ad job |
 | `batch-status <batchId>` | One-shot batch status |
 | `batch-wait <batchId> [--timeout] [-o dir]` | Resume polling on an advantage+ batch + download every completed concept |
+
+### `template` — template library
+
+The approved templates at [app.quickdesign.io/templates](https://app.quickdesign.io/templates) (never other users' designs).
+
+| Command | Notes |
+| --- | --- |
+| `list [--category <id\|name>] [--tag <id\|name>] [-q <title>] [--limit] [--offset] [--human]` | Newest first; `--human` prints id, title, type, category, tags and the media URL |
+| `filters [--human]` | Categories and tags to filter by |
+
+A template's `image_url` works as `image generate --reference-image <url>` when you want "this layout for my product".
 
 ### `design`
 
