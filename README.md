@@ -190,6 +190,7 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | Command | Notes |
 | --- | --- |
 | `generate --provider <seedance\|kling\|ugc> [--model <slug>] --prompt … [--image \| --reference-image…] [--audio] [--duration] [--aspect-ratio] [--resolution] [--wait] [-o path]` | Start + optional poll + optional save. Pass `--model` to pick the model (`seedance-2.5`, `flux-3-t2v`, `flux-3-i2v` and `gemini-omni-video` all use `--provider seedance`). Without `--model`, `--reference-image` (1+) selects Seedance 2.0 r2v. Prompt-only jobs go to `start-text-to-video` only for `*-t2v` slugs; everything else (e.g. `seedance-2.5`) stays on `start-image-to-video`. `--provider sora2` exits with an error (retired upstream 2026-09-23); `status`/`wait`/`history sora2` still work. UGC requires both `--image` and `--audio`. |
+| `replicate --video <url\|path> --product <url\|path>… [--model-image] [--brand-kit] [--language tr\|en] [--resolution 720p\|1080p] [--wait] [-o path]` | Re-create a reference ad with your product (Gemini-directed Seedance 2.5). Cost = Seedance 2.5 per-second × reference length (5–30 s) + 10 credits, refunded on failure. Follow with `video wait seedance <jobId>`. |
 | `status <provider> <jobId>` | One-shot status check |
 | `wait <provider> <jobId> [--timeout] [-o path]` | Resume polling on a job started earlier (default timeout 30 min) and optionally download |
 | `history <provider> [--limit] [--status]` | List jobs for a provider |

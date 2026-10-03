@@ -1,6 +1,6 @@
 ---
 name: quickdesign
-description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana, Flux 3, Gemini Omni Video, and Kling. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, or video upscale via QuickDesign.
+description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana, Flux 3, Gemini Omni Video, and Kling. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, video upscale, or to replicate/remake a competitor's video ad with your product via QuickDesign.
 ---
 
 # QuickDesign CLI skill
@@ -13,6 +13,7 @@ This skill teaches Claude how to plan and execute AI media generation through th
 - **Multi-segment promo / explainer** — anything where total speech is >30s (single Seedance 2.5 segment cap) or where the user wants angle cuts / framing progression
 - **Image edit / generation** — angle change, state change, product on white background, lifestyle composite, brand-kit-styled creatives, multi-product reference composition
 - **Video upscale** — bring 720p / 1080p output to 1080p / 4K
+- **Replicate a competitor / reference video ad** — re-create it with the user's product → `quickdesign video replicate` (`references/replicate-video.md`)
 - **Bulk / batch creative production** — "do this for each of these 5 product photos"
 
 Do NOT use for: pure text generation, code edits, search — those have their own tools.
@@ -136,6 +137,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | 4:5 / 5:4 image, cheap drafts, text-to-image, "Banana Pro" | `models/nano-banana-2.md` (covers Nano Banana 2 / Pro / Lite) |
 | Cinematic single shot, pure text-to-video, "use Sora" | `models/flux-3.md` (Sora 2 is retired) |
 | Short product clip with synced sound effects, video-to-video restyle | `models/gemini-omni-video.md` |
+| Re-create a competitor/reference video ad with your product | `references/replicate-video.md` → `quickdesign video replicate` (confirm the cost first; pass `--brand-kit` when the user has one) |
 | Budget loop / non-spoken b-roll | `models/kling-3-pro.md` |
 | Final video too low-res | `models/topaz-video-upscale.md` (run after concat) |
 | Add captions to existing video | `references/auto-subtitle.md` |
@@ -216,6 +218,10 @@ ffmpeg -y -f concat -safe 0 -i /tmp/concat.txt -c copy final.mp4
 quickdesign video generate --provider seedance --model flux-3-t2v \
   --duration 8 --aspect-ratio 16:9 --resolution 1080p -p '...' -o shot.mp4 --wait
 
+# Replicate a reference ad with your product (Gemini-directed Seedance 2.5)
+quickdesign video replicate --video ./ref.mp4 --product ./product.jpg \
+  --brand-kit <uuid> --language en -o ./replicated.mp4
+
 # Auto-subtitle (karaoke style, post-generation)
 quickdesign video subtitle ./final.mp4 \
   --style tiktok --language en \
@@ -244,6 +250,7 @@ references/                        ← model-agnostic concepts (read for princip
    spybrands-add-on-miss.md        ← when `spy brands --search` returns 0: confirm + resolve FB page + `spy add`
    connecting-claude-ai-via-mcp.md ← claude.ai (web) users: how to connect via MCP, what's available vs. CLI-only
    deploy-meta.md                  ← `meta` commands: publish designs as PAUSED Meta ads + insights/report/radar analytics + comments moderation
+   replicate-video.md              ← `video replicate`: re-create a reference video ad with your product (Gemini-directed Seedance 2.5)
    voice-continuity.md             ← --reference-audio across multi-segment
    no-music-no-subtitles.md        ← minimal music + subtitle suppression
    auto-subtitle.md                ← post-generation captions (real ASR, not model-burned)
