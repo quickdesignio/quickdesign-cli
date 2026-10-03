@@ -73,6 +73,7 @@ interface ProductFacts {
 }
 
 const collect = (value: string, previous: string[]): string[] => [...previous, value];
+const isPositiveInt = (n: number | undefined): boolean => Number.isInteger(n) && (n as number) > 0;
 const clip = (v: unknown, max: number): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined;
 
@@ -114,7 +115,7 @@ export function registerVideoFromUrlCommands(video: Command): void {
     .option('--image <url|path>', `Product photo (repeatable, 1–${MAX_PRODUCTS}; default: the best photos on the page; auto-uploaded)`, collect, [] as string[])
     .option('--benefit <text>', `Product benefit (repeatable, up to ${MAX_BENEFITS}; replaces the ones found on the page)`, collect, [] as string[])
     .option('--model <slug>', 'Reference-to-video model (see `video models`)', 'seedance-2.5')
-    .option('--duration <seconds>', "Length in seconds, one of the model's durations (default 15)", (v) => parseInt(v, 10))
+    .option('--duration <seconds>', "Length in seconds, one of the model's durations (default 15)", Number)
     .option('--ratio <ratio>', 'Aspect ratio (default 9:16)')
     .option('--resolution <res>', 'Resolution (default 720p)')
     .addOption(new Option('--language <code>', 'Voiceover and on-screen text language').choices(['tr', 'en']).default('en'))
@@ -123,12 +124,15 @@ export function registerVideoFromUrlCommands(video: Command): void {
     .option('--cta <text>', 'Call to action for the end card, word for word')
     .option('--direction <text>', 'Creative direction: tone, style, things to avoid')
     .option('--wait', 'Block until the video is ready', false)
-    .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 1_800_000)
+    .option('--timeout <ms>', 'Wait timeout in ms', Number, 1_800_000)
     .option('-o, --output <path>', 'Save the result video to this path (implies --wait)')
     .action(async (url: string, opts: FromUrlOpts) => {
       try {
         if (opts.image.length > MAX_PRODUCTS) fail(`Pass at most ${MAX_PRODUCTS} --image photos (got ${opts.image.length}).`, 2);
         if (opts.benefit.length > MAX_BENEFITS) fail(`Pass at most ${MAX_BENEFITS} --benefit values.`, 2);
+        // A bad number must not fall back to the BFF's 15 s (a paid default) or a wait that never times out.
+        if (opts.duration !== undefined && !isPositiveInt(opts.duration)) fail('--duration must be a whole number of seconds above 0.', 2);
+        if (!isPositiveInt(opts.timeout)) fail('--timeout must be a whole number of milliseconds above 0.', 2);
 
         const analyzeSpin = ora({ text: 'Reading the product page…', stream: process.stderr }).start();
         let analysis: AnalyzeResponse;
