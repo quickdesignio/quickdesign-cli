@@ -119,6 +119,7 @@ Examples
       --reference-image https://cdn/bracelet.jpg --reference-image https://cdn/model.jpg \\
       -p "@Image2 wearing @Image1" --wait -o ./r2v.mp4
   $ quickdesign video replicate --video ./ref.mp4 --product ./bracelet.jpg --brand-kit <uuid> --language tr -o ./out.mp4
+  $ quickdesign video from-url https://shop.example/products/snake-chain --language tr --brand-kit <uuid> -o ./ad.mp4
   $ quickdesign brand dna https://kizik.com
   $ quickdesign ad-creator advantage-plus --product-url https://kizik.com/products/bowen --brand-kit <uuid> --wait -o ./ads
   $ quickdesign template list --tag Trending --limit 10 --human
