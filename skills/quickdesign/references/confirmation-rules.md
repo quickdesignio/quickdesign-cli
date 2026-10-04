@@ -1,9 +1,9 @@
 ---
-name: Two confirmation gates — plan summary BEFORE generation, reference edit BEFORE Seedance
-description: Two pause points are mandatory in any paid generation pipeline. (1) Emit a plan summary BEFORE any generation and wait for user "go". (2) When the pipeline includes a reference-edit step (image edit — default `gpt-image-2-5-sunburst-i2i`) that feeds into Seedance, generate the edit, show it to the user, wait for visual approval, THEN run Seedance. Reference edits are ~12-24cr; a Seedance 2.5 segment is ~336-840cr — a wrong reference auto-chained to Seedance burns ~20-45× the cost.
+name: Three confirmation gates — plan summary BEFORE generation, reference edit BEFORE Seedance, explicit go-ahead BEFORE anything posts publicly or starts ad spend
+description: Three pause points are mandatory. (1) Emit a plan summary BEFORE any generation and wait for user "go". (2) When the pipeline includes a reference-edit step (image edit — default `gpt-image-2-5-sunburst-i2i`) that feeds into Seedance, generate the edit, show it to the user, wait for visual approval, THEN run Seedance. Reference edits are ~12-24cr; a Seedance 2.5 segment is ~336-840cr — a wrong reference auto-chained to Seedance burns ~20-45× the cost. (3) Anything that posts publicly at once or starts ad spend (`social publish-now`, `social retry`, `meta campaign-status --status active`) needs the user's explicit go-ahead for that exact post or campaign; never add `--yes` on your own.
 ---
 
-Two pause points are mandatory in any paid generation pipeline. Skipping either burns user credit and trust.
+Three pause points are mandatory: two in any paid generation pipeline (Gates 1 and 2), and one before anything posts publicly or starts ad spend (Gate 3). Skipping any of them burns user credit and trust.
 
 ## Gate 1: Plan summary before any generation
 
@@ -214,6 +214,6 @@ Seedance 2.5 has no 4K and no `auto` resolution — if the user needs a 4K maste
 
 ## Gate 3: anything that posts publicly or starts ad spend
 
-`quickdesign social publish-now` (it goes live on the user's Page / Instagram right away) and `quickdesign meta campaign-status --status active` (it starts ad spend) need the user's explicit go-ahead for that exact post or campaign in this conversation. Name it back to them: the post's caption opening, Page and platforms, or the campaign and its budget. Never add `--yes` on your own initiative, and auto mode does not lift this gate.
+`quickdesign social publish-now` (it goes live on the user's Page / Instagram right away), `quickdesign social retry <target-id>` (it publishes that failed platform right away) and `quickdesign meta campaign-status --status active` (it starts ad spend) need the user's explicit go-ahead for that exact post or campaign in this conversation. Name it back to them: the post's caption opening, Page and platforms, or the campaign and its budget. Never add `--yes` on your own initiative, and auto mode does not lift this gate.
 
-Scheduling with `quickdesign social create` is not immediate, but it still posts publicly later. Confirm the Page, platforms, media, caption and the Page-local time before creating, and say how to cancel (`quickdesign social cancel <post-id>`).
+Scheduling with `quickdesign social create` is not immediate (though a time within the next minute or two publishes at the next worker run), and it still posts publicly later. Confirm the Page, platforms, media, caption and the Page-local time before creating, and say how to cancel (`quickdesign social cancel <post-id>`).

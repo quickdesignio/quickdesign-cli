@@ -10,7 +10,7 @@ Organic posts on the user's own Facebook Page and Instagram professional account
 ## Prerequisites (all in the app)
 
 - Meta connected, and the Page (with its Instagram account) turned on in the planner.
-- An Ultra, Pro Max or Team plan. During the rollout only enabled accounts can use it (`social_disabled` otherwise).
+- An Ultra, Pro Max or Team plan (`social_plan` otherwise: the user upgrades). During the rollout only enabled accounts can use it (`social_disabled` otherwise).
 - Until Meta approves QuickDesign's publishing permissions, only accounts with a role on the QuickDesign Meta app can publish. Other accounts' posts fail with a permission error. Say so if a publish fails with `permission`.
 
 ## Rules
@@ -22,23 +22,26 @@ Organic posts on the user's own Facebook Page and Instagram professional account
      - `not_enabled`: the user turns it on in the planner;
      - `missing_permission`: the user grants the publishing permission (reconnect).
 2. **Time is the Page's time.**
-   - Prefer `--date YYYY-MM-DD --time HH:mm`, which is read in the Page's time zone. `--at` must carry an offset.
+   - Prefer `--date YYYY-MM-DD --time HH:mm`, which is read in the Page's time zone, for `create` and `edit` alike. `--at` must carry an offset.
    - Tell the user the result's `scheduled_local` and `timezone`, plus UTC if they are in another zone.
-3. **Confirm before creating:** the Page, platforms, media, caption and time. `create` never publishes immediately.
+   - `timezone_invalid`: the Page's time zone is broken; the user fixes it in the planner settings.
+3. **Confirm before creating:** the Page, platforms, media, caption and time. `create` never publishes on its own right away, but a time within the next minute or two publishes at the next worker run.
 4. **One `--client-request-id` per intended post.**
-   - The CLI prints the id it used.
+   - It must be a UUID. The CLI prints the id it used in the JSON output, and in the error when a result is unknown.
    - If a create times out or fails with an unknown result, re-run the SAME command with that `--client-request-id`. A fresh id could post twice.
    - A different post under a used id fails with `idempotency_conflict`.
 5. **Edits need `--expected-updated-at`.**
    - Take it from `social get <id>` (the `updated_at` field, verbatim).
    - On `stale_post`, read the post again, tell the user what changed, then retry.
    - Only the flags you pass change; `--media` replaces all media.
-6. **`publish-now` only on an explicit request for that post** ("publish it now"). It goes live at once and cannot be undone from QuickDesign. Pass `--yes` only after the user said yes in this conversation.
+   - The type stays unless `--type` is passed: pass `--type` when `--media` changes the kind (e.g. 1 image → 3 items = `carousel`).
+   - A canceled post cannot be edited or published (`post_canceled`): create a new one.
+6. **`publish-now` only on an explicit request for that post** ("publish it now"). It goes live at once and cannot be undone from QuickDesign. It prompts on a TTY; without a TTY it refuses unless `--yes`. Pass `--yes` only after the user said yes in this conversation.
 7. **Failures:** `social posts --attention` lists them.
-   - `failed`: fix the post (`edit`) or run `social retry <target-id>`.
+   - `failed`: fix the post with `edit` (only when no other platform of the post is already live), or run `social retry <target-id>`. A retry publishes that platform right away, so ask the user first and pass `--yes` only after they agreed.
    - `needs_attention`: the post MAY ALREADY BE LIVE.
      - Never retry it from the CLI (it refuses with `resolve_in_app`), and never say it was not published.
-     - Ask the user to check the profile. If it is live, run `social mark-published <target-id>`; otherwise they retry it in the app.
+     - Ask the user to check the profile (`social feed <profile-id>` shows an Instagram account's last 30 posts). If it is live, run `social mark-published <target-id>`; otherwise they retry it in the app.
 8. **Published posts are final:** QuickDesign cannot edit or delete them.
 
 ## Media
@@ -63,6 +66,6 @@ quickdesign social posts --page 1234567890 --human
 quickdesign social get <post-id>            # updated_at for edits
 quickdesign social edit <post-id> --expected-updated-at <updated_at> --date 2026-10-10 --time 20:00
 quickdesign social cancel <post-id>
-quickdesign social publish-now <post-id>    # only on an explicit request; prompts
+quickdesign social publish-now <post-id>    # only on an explicit request; prompts on a TTY, else needs --yes
 quickdesign social caption --write --image ./photo.jpg --page 1234567890 --platform ig --human
 ```

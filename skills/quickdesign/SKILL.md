@@ -159,7 +159,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Pre-flight: which model is alive in the registry | `quickdesign video models`, `quickdesign cost --category video` |
 | Per-segment reference choice | `references/multi-reference-pattern.md`, `references/narrative-arc.md` |
 | Generation: prompt skeleton + gotchas for the model you picked | `models/<slug>.md` |
-| Quality gates: reference-edit anatomy check, plan-summary approval | `references/confirmation-rules.md` |
+| Quality gates: reference-edit anatomy check, plan-summary approval, the publish / ad-spend go-ahead (Gate 3: `social publish-now`, `social retry`, `meta campaign-status --status active`) | `references/confirmation-rules.md` |
 | Post-processing: subtitle, upscale | `references/auto-subtitle.md`, `models/topaz-video-upscale.md` |
 
 ## Discover at runtime
