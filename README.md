@@ -262,6 +262,23 @@ PostgREST-direct (user JWT + RLS). Requires `QUICKDESIGN_SUPABASE_ANON_KEY`.
 | `comment-action --comment … --action hide\|unhide\|reply\|delete [--message] [--yes]` | Moderate one comment. `reply`/`delete` prompt unless `--yes` |
 | `comment-draft --comment …` | AI reply suggestions (nothing posted) |
 
+### `social` — Social planner (organic Facebook + Instagram posts)
+
+Needs, in the app: Meta connected, the Pages turned on in the planner, and an Ultra / Pro Max / Team plan.
+
+| Command | Notes |
+| --- | --- |
+| `profiles` | Connected Pages / IG accounts: `page_id`, time zone, ready or why not. Start here |
+| `posts [--from] [--to] [--page] [--drafts\|--attention]` | Calendar window (default today + 14 days), drafts, or posts that failed / need a check |
+| `get <post-id>` | One post, with the `updated_at` that `edit` needs |
+| `create --page … --to fb,ig --media design:<id>\|<url>\|<file> … (--date … --time …\|--at <iso>\|--draft)` | Schedules or saves a draft — never publishes at once. `--validate-only` checks without saving; `--client-request-id` makes retries safe |
+| `edit <post-id> --expected-updated-at … [fields]` | Only the fields you pass change; `--media` replaces all media |
+| `cancel <post-id>` | Stops a scheduled post |
+| `publish-now <post-id> [--yes]` | Publishes immediately — prompts unless `--yes` |
+| `retry <target-id>` / `mark-published <target-id>` | Retry a failed platform / record that a needs-attention platform is live |
+| `feed <profile-id>` | An Instagram account's last 30 posts |
+| `caption (--improve <text> \| --write --image …)` | AI caption text (nothing saved) |
+
 ### `cost` — credit pricing
 
 | Command | Notes |

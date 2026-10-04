@@ -18,6 +18,7 @@ import { registerAdCreatorCommands } from './commands/ad-creator.js';
 import { registerDesignCommands } from './commands/design.js';
 import { registerTemplateCommands } from './commands/template.js';
 import { registerMetaCommands } from './commands/meta.js';
+import { registerSocialCommands } from './commands/social.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerCostCommand } from './commands/cost.js';
 import pkg from '../package.json' with { type: 'json' };
@@ -128,6 +129,9 @@ Examples
   $ quickdesign meta radar --account act_123 --compute --human
   $ quickdesign meta publish --account act_123 --page 456 --name "Summer Sale" \\
       --objective OUTCOME_SALES --budget 50 --design 1234 --design 5678 --wait --human
+  $ quickdesign social profiles --human
+  $ quickdesign social create --page 1234567890 --to fb,ig --media design:4521 \\
+      --caption "New drop" --date 2026-10-10 --time 19:00 --human
 
 Environment
   QUICKDESIGN_BASE_URL             Override API base (default: https://app.quickdesign.io)
@@ -147,6 +151,7 @@ registerAdCreatorCommands(program);
 registerDesignCommands(program);
 registerTemplateCommands(program);
 registerMetaCommands(program);
+registerSocialCommands(program);
 registerInitCommand(program);
 registerCostCommand(program);
 

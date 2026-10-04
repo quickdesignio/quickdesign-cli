@@ -39,7 +39,7 @@ export function looksLikeLocalPath(input: string): boolean {
   return true;
 }
 
-export async function uploadLocalFile(localPath: string): Promise<string> {
+export async function uploadLocalFile(localPath: string, remoteName?: string): Promise<string> {
   const stat = statSync(localPath); // throws if missing
   if (!stat.isFile()) {
     throw new Error(`Not a file: ${localPath}`);
@@ -54,11 +54,12 @@ export async function uploadLocalFile(localPath: string): Promise<string> {
   const ext = extname(localPath).toLowerCase().replace(/^\./, '') || 'bin';
   const contentType = CONTENT_TYPE_BY_EXT[ext] ?? 'application/octet-stream';
   const originalName = basename(localPath);
-  const remoteName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  // A caller may pin the name (social uses a content hash so a retry reuses the URL).
+  const name = remoteName ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
   const form = new FormData();
   form.append('file', new Blob([buf], { type: contentType }), originalName);
-  form.append('filename', remoteName);
+  form.append('filename', name);
   form.append('contentType', contentType);
 
   const base = resolveSupabaseUrl().replace(/\/$/, '');
