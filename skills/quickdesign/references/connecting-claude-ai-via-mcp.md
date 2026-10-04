@@ -57,6 +57,7 @@ The MCP server exposes the full generation surface now, not just read tools (che
 | Ad Creator | `quickdesign_ad_creator_concepts`, `_ad_creator_generate`, `_ad_creator_advantage_plus`, `_ad_creator_status` | paid |
 | Flows | `quickdesign_flow_list`, `_flow_get`, `_flow_generate`, `_flow_edit`, `_flow_duplicate`, `_flow_delete` | paid when a flow runs |
 | Deploy Meta | `quickdesign_meta_accounts`, `_meta_publish`, `_meta_publish_status`, `_meta_campaigns`, `_meta_campaign_status`, `_meta_insights`, `_meta_report`, `_meta_radar`, `_meta_settings`, `_meta_comments`, `_meta_comments_sync`, `_meta_comment_action`, `_meta_comment_draft` | 0 credits (activating a campaign spends ad budget — see `./deploy-meta.md`) |
+| Social planner (organic FB/IG posts) | `quickdesign_social_profiles`, `_social_posts`, `_social_post_validate`, `_social_post_create`, `_social_post_update`, `_social_post_cancel`, `_social_post_publish_now`, `_social_target_action`, `_social_instagram_feed`, `_social_caption` | 0 credits (listed only while the planner is enabled for the account; Ultra / Pro Max / Team; publish_now posts publicly at once — see `./social-planner.md`) |
 
 Every skill rule applies on the MCP path exactly as on the CLI: plan summary + reference-edit gates (`./confirmation-rules.md`), `@Image1` labels, the no-music / no-subtitles lines.
 
