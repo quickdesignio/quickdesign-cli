@@ -211,3 +211,9 @@ Seedance 2.5 has no 4K and no `auto` resolution — if the user needs a 4K maste
 ### Mental model
 
 `AskUserQuestion` is for *forks in the road*. Plain prose pauses are for *open-ended review*. Both are confirmation gates; they're just different shapes.
+
+## Gate 3: anything that posts publicly or starts ad spend
+
+`quickdesign social publish-now` (it goes live on the user's Page / Instagram right away) and `quickdesign meta campaign-status --status active` (it starts ad spend) need the user's explicit go-ahead for that exact post or campaign in this conversation. Name it back to them: the post's caption opening, Page and platforms, or the campaign and its budget. Never add `--yes` on your own initiative, and auto mode does not lift this gate.
+
+Scheduling with `quickdesign social create` is not immediate, but it still posts publicly later. Confirm the Page, platforms, media, caption and the Page-local time before creating, and say how to cancel (`quickdesign social cancel <post-id>`).

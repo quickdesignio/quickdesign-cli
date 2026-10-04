@@ -1,6 +1,6 @@
 ---
 name: quickdesign
-description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana, Flux 3, Gemini Omni Video, and Kling. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, video upscale, to replicate/remake a competitor's video ad with your product, or to turn a product page URL into a video ad via QuickDesign.
+description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana, Flux 3, Gemini Omni Video, and Kling. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, video upscale, to replicate/remake a competitor's video ad with your product, to turn a product page URL into a video ad, or to schedule organic Facebook Page / Instagram posts (Social planner) via QuickDesign.
 ---
 
 # QuickDesign CLI skill
@@ -15,6 +15,7 @@ This skill teaches Claude how to plan and execute AI media generation through th
 - **Video upscale** — bring 720p / 1080p output to 1080p / 4K
 - **Replicate a competitor / reference video ad** — re-create it with the user's product → `quickdesign video replicate` (`references/replicate-video.md`)
 - **Video ad from a product page** — "make a video ad from this link" → `quickdesign video from-url` (`references/url-to-video.md`)
+- **Schedule organic Facebook / Instagram posts**: "post this design to our Page tomorrow at 10", "plan next week's Instagram posts", "what's scheduled?" → `quickdesign social` (`references/social-planner.md`)
 - **Bulk / batch creative production** — "do this for each of these 5 product photos"
 
 Do NOT use for: pure text generation, code edits, search — those have their own tools.
@@ -146,6 +147,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Brand not in Spy Brands library / 0 search results | `references/spybrands-add-on-miss.md` |
 | User is on claude.ai (web) and asks about QuickDesign | `references/connecting-claude-ai-via-mcp.md` |
 | Publish designs to Meta as ads / analyze own Meta ad performance / moderate FB+IG comments | `references/deploy-meta.md` |
+| Schedule or plan organic Facebook Page + Instagram posts (not ads), check what is scheduled, fix a failed post | `references/social-planner.md` → `quickdesign social …` (confirm the Page, platforms and the Page-local time first; `publish-now` only on an explicit request) |
 | Ad creatives from a product page (one concept, or all 16 with Advantage+) | `quickdesign ad-creator concepts` → `ad-creator generate` / `advantage-plus` with `--product-url` (below). Always pass the user's `--brand-kit <uuid>` when they have one |
 | "Use this template" / find a layout or style to copy | `quickdesign template filters` → `template list --tag … --category …`. The template id shown on hover in the app is `id` here. Pass its `image_url` to `image generate --reference-image` |
 
@@ -256,6 +258,7 @@ references/                        ← model-agnostic concepts (read for princip
    spybrands-add-on-miss.md        ← when `spy brands --search` returns 0: confirm + resolve FB page + `spy add`
    connecting-claude-ai-via-mcp.md ← claude.ai (web) users: how to connect via MCP, what's available vs. CLI-only
    deploy-meta.md                  ← `meta` commands: publish designs as PAUSED Meta ads + insights/report/radar analytics + comments moderation
+   social-planner.md               ← `social` commands: schedule organic FB/IG posts, drafts, edits, publish-now (guarded), failures
    replicate-video.md              ← `video replicate`: re-create a reference video ad with your product (Gemini-directed Seedance 2.5)
    url-to-video.md                 ← `video from-url`: turn a product page into an original video ad (Claude-directed, Seedance 2.5)
    voice-continuity.md             ← --reference-audio across multi-segment
