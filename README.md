@@ -275,7 +275,8 @@ Needs, in the app: Meta connected, the Pages turned on in the planner, and an Ul
 | `edit <post-id> --expected-updated-at … [fields]` | Only the fields you pass change; `--media` replaces all media |
 | `cancel <post-id>` | Stops a scheduled post |
 | `publish-now <post-id> [--yes]` | Publishes immediately — prompts unless `--yes` |
-| `retry <target-id>` / `mark-published <target-id>` | Retry a failed platform / record that a needs-attention platform is live |
+| `retry <target-id> [--yes]` | Retries a failed platform — publishes it right away; prompts unless `--yes` |
+| `mark-published <target-id>` | Records that a needs-attention platform is live |
 | `feed <profile-id>` | An Instagram account's last 30 posts |
 | `caption (--improve <text> \| --write --image …)` | AI caption text (nothing saved) |
 

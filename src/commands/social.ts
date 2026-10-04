@@ -7,8 +7,8 @@
  * Prerequisites, all in the app (app.quickdesign.io/social/planner): connect
  * Meta, turn the Pages on for planning, and an Ultra / Pro Max / Team plan.
  *
- * Safety: `create` only schedules or saves a draft; `publish-now` posts at
- * once and asks first (refuses without a TTY unless --yes). A create is
+ * Safety: `create` only schedules or saves a draft; `publish-now` and `retry`
+ * post at once and ask first (refuse without a TTY unless --yes). A create is
  * idempotent by --client-request-id; `edit` needs --expected-updated-at.
  */
 import { randomUUID } from 'node:crypto';
@@ -50,6 +50,7 @@ interface Post {
   id: string;
   post_type: string;
   status: string;
+  caption: string;
   scheduled_local: string | null;
   timezone: string;
   updated_at: string;
@@ -144,6 +145,20 @@ async function postAction(path: string, o: { human?: boolean }, body: unknown = 
     printPost(p);
   } catch (err) {
     failWith(err);
+  }
+}
+
+/** The publish-now prompt's summary: Page-local time (or draft), platforms, the caption's start. Null when the post cannot be read. */
+async function describePost(id: string): Promise<string | null> {
+  try {
+    const p = (await request<Envelope<Post>>(`${AGENT}/posts/${enc(id)}`)).data!;
+    const when = p.scheduled_local ? `${p.scheduled_local.replace('T', ' ')} ${p.timezone}` : 'draft';
+    const platforms = p.targets.map((t) => t.platform).join(' + ');
+    const text = (p.caption ?? '').replace(/\s+/g, ' ').trim();
+    const caption = text ? `"${text.length > 60 ? `${text.slice(0, 60)}…` : text}"` : 'no caption';
+    return `${when}, ${platforms}, ${caption}`;
+  } catch {
+    return null;
   }
 }
 
@@ -300,7 +315,9 @@ export function registerSocialCommands(program: Command): void {
         if (!process.stdin.isTTY) {
           return fail(new Error('Refusing to publish non-interactively without --yes (this posts publicly right away).'));
         }
-        if (!(await confirm(`Publish post ${id} now? It goes live on the Page / Instagram right away. [y/N] `))) {
+        const summary = await describePost(id);
+        const what = summary ? `post ${id} (${summary})` : `post ${id}`;
+        if (!(await confirm(`Publish ${what} now? It goes live on the Page / Instagram right away. [y/N] `))) {
           note('Aborted — nothing was published.');
           return;
         }
@@ -310,9 +327,27 @@ export function registerSocialCommands(program: Command): void {
 
   social
     .command('retry <target-id>')
-    .description('Retry a FAILED platform of a post (targets[].id); posts that need attention are resolved in the app')
+    .description(
+      'Retry a FAILED platform of a post (targets[].id) — publishes it right away (prompts unless --yes); ' +
+        'posts that need attention are resolved in the app',
+    )
+    .option('--yes', 'Skip the confirmation prompt', false)
     .option('--human', 'Pretty-print')
-    .action(async (id: string, o: { human?: boolean }) => postAction(`/targets/${enc(id)}/retry`, o));
+    .action(async (id: string, o: { yes?: boolean; human?: boolean }) => {
+      // A retry queues the platform again and the worker publishes it at once:
+      // the same gate as publish-now. The body stays empty, so it never confirms
+      // an unknown outcome (needs_attention is resolved in the app).
+      if (!o.yes) {
+        if (!process.stdin.isTTY) {
+          return fail(new Error('Refusing to retry non-interactively without --yes (this publishes that platform right away).'));
+        }
+        if (!(await confirm(`Retry target ${id} now? It publishes that platform right away. [y/N] `))) {
+          note('Aborted — nothing was published.');
+          return;
+        }
+      }
+      await postAction(`/targets/${enc(id)}/retry`, o);
+    });
 
   social
     .command('mark-published <target-id>')
