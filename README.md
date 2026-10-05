@@ -10,7 +10,7 @@ Command-line interface for [QuickDesign](https://quickdesign.io) — built so an
 - **Smart Ad Creator** — turn a product URL into a single concept ad, or fan out 16 concepts in parallel (Advantage+).
 - **Spy Brands** — query the competitor ad library: per-brand ads, cross-brand winners, this-week trends.
 - **Brand DNA** — scrape a website's colors / fonts / logo, or run the full Claude-streamed Brand DNA extraction (voice, audience, offer).
-- **Designs** — list, fetch, download, or archive your saved creatives directly from PostgREST.
+- **Designs** — list, fetch, download, or archive your saved creatives through the QuickDesign API.
 - **Ship-ready** — JSON to stdout, diagnostics to stderr, exit codes for pipelines, optional `--human` pretty-print.
 
 ## Install
@@ -49,7 +49,7 @@ Requires Node.js ≥ 18.17 either way.
 
 1. **Doctor** — checks for `ffmpeg` / `ffprobe` (needed for multi-segment video pipelines). Warns + prints install hints if missing; never blocks.
 2. **Skill install** — copies the bundled Claude Code skill into `~/.claude/skills/quickdesign/`. Refuses to overwrite existing files unless `--force`.
-3. **Auth login** — opens the browser handshake (or falls back to terminal paste; see [Authentication](#authentication)).
+3. **Auth login** — device login: prints a code you approve in the browser (works over SSH and in containers; see [Authentication](#authentication)).
 
 ```bash
 quickdesign init                       # full bootstrap
@@ -101,37 +101,40 @@ quickdesign template list --tag Trending --limit 10 --human
 quickdesign brand dna https://kizik.com
 
 # --- Your designs -------------------------------------------------------
-export QUICKDESIGN_SUPABASE_ANON_KEY="<your supabase anon key>"
 quickdesign design list --limit 10
 quickdesign design download <id> -o ./out.jpg
 ```
 
 ## Authentication
 
-`quickdesign login` opens the default browser, waits for the QuickDesign web app to hand back a token, and writes it to:
-
-```
-~/.config/quickdesign/auth.json  (0600)
+```bash
+quickdesign login
 ```
 
-The file holds the access token + refresh token, so subsequent commands transparently refresh expired sessions without re-prompting.
-
-**Manual paste fallback.** Some environments (corporate VPN, container, remote SSH, browsers that block HTTPS→localhost) can't deliver the token over the loopback handshake. While `quickdesign login` is running, the browser tab also displays the access token in a copy box — paste it into the same terminal where `login` is waiting, press Enter, and it accepts the token directly. Whichever path finishes first wins; the other is cancelled cleanly.
-
-For CI, skip the browser entirely:
+prints a short code and a link (`https://app.quickdesign.io/device`). Open the link on any device where you are signed in to QuickDesign — the same machine or your laptop when the CLI runs over SSH, in a container, or inside Claude Code (`! quickdesign login`) — check the code matches, and approve. The CLI then keeps its own session in `~/.config/quickdesign/auth.json` (0600): the access token renews itself, and the session stays signed in as long as you use it at least once every 90 days. Signing out of the web app does not sign out the CLI.
 
 ```bash
-QUICKDESIGN_TOKEN=<supabase-jwt> quickdesign spy brands
+quickdesign whoami                 # who, session kind, live check
+quickdesign auth token             # a valid access token for scripts (renews if needed)
+quickdesign logout                 # revokes the session and deletes auth.json
+```
+
+For scripts, use `quickdesign auth token` rather than reading `auth.json` — the stored access token lives an hour and is renewed on use.
+
+For CI, pass a token instead (it is used until it expires and never renewed):
+
+```bash
+QUICKDESIGN_TOKEN=<access token> quickdesign spy brands
 # or
-quickdesign login --token <supabase-jwt>
-# or
+quickdesign login --token <access token>
 cat my-token.txt | quickdesign login --token-stdin
 ```
 
-Logout / inspect config:
+Upgrading from 0.16 or earlier: your old login keeps working until it expires, then commands say `Session ended — run quickdesign login` once.
+
+Inspect the config (tokens are hidden):
 
 ```bash
-quickdesign logout
 quickdesign auth config show
 quickdesign auth config set baseUrl http://localhost:3001   # local dev
 ```
@@ -142,8 +145,7 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | ------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `QUICKDESIGN_BASE_URL`          | Override API base URL (default `https://app.quickdesign.io`)                                        |
 | `QUICKDESIGN_TOKEN`             | Override the stored token (takes precedence over `auth.json`)                                       |
-| `QUICKDESIGN_SUPABASE_URL`      | Override Supabase REST base (default: prod project). Used only by `design` subcommands.             |
-| `QUICKDESIGN_SUPABASE_ANON_KEY` | Supabase API key — accepts both the legacy anon JWT and the new `sb_publishable_...` key. Used by `design` subcommands (PostgREST-direct; RLS scopes to user) and token refresh. A prod default ships in the binary; override here or via `quickdesign auth config set supabase_anon_key <key>` (e.g. after a key rotation). |
+| `QUICKDESIGN_NO_BROWSER`        | Set to `1` to never open a browser during `login` (the printed link always works) |
 
 ## Commands
 
@@ -151,16 +153,17 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 
 | Command | Notes |
 | --- | --- |
-| `init [--force] [--skill-only] [--no-skill] [--no-auth] [--no-doctor] [--skill-dir <path>]` | One-shot setup: ffmpeg doctor + bundled Claude Code skill + browser login |
+| `init [--force] [--skill-only] [--no-skill] [--no-auth] [--no-doctor] [--skill-dir <path>]` | One-shot setup: ffmpeg doctor + bundled Claude Code skill + login |
 
 ### `auth`
 
 | Command                      | Notes                                              |
 | ---------------------------- | -------------------------------------------------- |
-| `login`                      | Browser OAuth + parallel terminal-paste fallback (CI flags: `--token`, `--token-stdin`, `--timeout <ms>`) |
-| `logout`                     | Delete the stored token                            |
+| `login` | Device login — prints a code to approve in the browser (CI: `--token`, `--token-stdin`) |
+| `logout`                     | Revoke the session and delete the stored token     |
 | `whoami`                     | Show the active user, token expiry, live ping      |
-| `auth config show|get|set|path` | Inspect / tweak the config file                 |
+| `auth token`                 | Print a valid access token (renews the session) — for scripts |
+| `auth config show|get|set|path` | Inspect / tweak the config file (tokens are hidden) |
 
 ### `spy` — Spy Brands
 
@@ -199,7 +202,7 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `upscale-status <jobId>` | One-shot status check |
 | `upscale-wait <jobId> [--timeout] [-o path]` | Resume polling on an upscale job |
 | `upscale-history [--limit]` | List upscale jobs |
-| `subtitle <video> [--style default\|tiktok\|minimal\|karaoke\|reels-pop] [--language] [--font-name] [--font-size] [--position] [--wait] [-o path]` | Burn karaoke-style auto-subtitles into a video (ElevenLabs ASR + libass; ~$0.03/min). Default preset: Montserrat 65px bold, 5 words/line, bottom-positioned, yellow highlight. Local files are auto-uploaded to R2. |
+| `subtitle <video> [--style default\|tiktok\|minimal\|karaoke\|reels-pop] [--language] [--font-name] [--font-size] [--position] [--wait] [-o path]` | Burn karaoke-style auto-subtitles into a video (ElevenLabs ASR + libass; ~$0.03/min). Default preset: Montserrat 65px bold, 5 words/line, bottom-positioned, yellow highlight. Local files (up to 200 MB) are auto-uploaded to R2. |
 | `subtitle-status <jobId>` | One-shot status check |
 | `subtitle-history [--limit]` | List subtitle jobs |
 
@@ -218,7 +221,7 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `analyze <product-url>` | Extract product name, images, features, audience |
 | `generate --concept <slug> --product-url <url> [--brand-kit <uuid>] [--wait] [-o path]` | Single-concept async job. The product page is analyzed server-side (image, name, features, audience); the brand kit applies its colors, fonts, voice and logo |
 | `advantage-plus --product-url <url> [--concept <slug>…] [--brand-kit <uuid>] [--wait] [-o dir]` | Fan out all 16 concepts, or only the repeated `--concept`s. With `-o <dir>`, every completed concept is saved to `<dir>/<concept>.jpg` |
-| _product flags (both)_ | `--product-image <url\|path>` (local files auto-upload), `--product-name`, `--target-audience` override the analysis, or replace it when there's no `--product-url` (then `advantage-plus` needs name + audience). `--business-type product\|saas` (default: detected) |
+| _product flags (both)_ | `--product-image <url\|path>` (local files up to 200 MB auto-upload), `--product-name`, `--target-audience` override the analysis, or replace it when there's no `--product-url` (then `advantage-plus` needs name + audience). `--business-type product\|saas` (default: detected) |
 | `status <requestId>` | One-shot status check |
 | `wait <requestId> [--timeout] [-o path]` | Resume polling on a single ad job |
 | `batch-status <batchId>` | One-shot batch status |
@@ -237,11 +240,11 @@ A template's `image_url` works as `image generate --reference-image <url>` when 
 
 ### `design`
 
-PostgREST-direct (user JWT + RLS). Requires `QUICKDESIGN_SUPABASE_ANON_KEY`.
+Your own designs, served by the QuickDesign API. `--select a,b` keeps only those columns.
 
 | Command | Notes |
 | --- | --- |
-| `list [--limit] [--offset] [--category] [--assets-only] [--archived]` | Your designs (most recent first) |
+| `list [--limit] [--offset] [--category <id>] [--assets-only] [--archived]` | Your designs (most recent first) |
 | `get <id>` | Full row |
 | `delete <id>` | Soft-delete (sets `isArchived = true`) |
 | `download <id> -o <path>` | Save the design's image or video to disk |
@@ -335,7 +338,7 @@ npm link                           # makes `quickdesign` available on PATH
 
 # point at a local BFF
 export QUICKDESIGN_BASE_URL=http://localhost:3001
-export QUICKDESIGN_TOKEN="<your local supabase jwt>"
+export QUICKDESIGN_TOKEN="$(quickdesign auth token)"   # or log in against the local BFF
 
 quickdesign whoami
 quickdesign spy brands --search anything --limit 3 --human
@@ -370,6 +373,8 @@ The workflow also verifies the git tag matches `package.json#version` before pub
   (scraper + SSE DNA), `ad-creator` (single + advantage+), `design` (list / get / delete /
   download — PostgREST-direct)
 - **v0.3** ✅ — `init` bootstrap (doctor + bundled skill + login), `video subtitle` (auto-subtitle / karaoke), refresh-token handling, browser-OAuth Chrome PNA fix + parallel terminal-paste fallback
+- **v0.17** ✅ — device login (own renewing session, works over SSH), `auth token`, designs + uploads through the API (no Supabase dependency)
+  - whoami --json: `session` replaces `hasRefreshToken`
 - **v0.4** — local-file sources (`--image ./foo.jpg`) via auto-upload to R2
 - **v1.0** — plugins, opt-in telemetry, Homebrew tap
 
