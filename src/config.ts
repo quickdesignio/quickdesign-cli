@@ -210,6 +210,23 @@ function acquireRefreshLock(timeoutMs = LOCK_WAIT_MS, staleMs = LOCK_STALE_MS): 
   }
 }
 
+/**
+ * Run `fn` while holding the renewal lock, so a write to auth.json (login,
+ * logout, config set) never interleaves with a sibling's renewal: a renewal
+ * that finishes after a logout would bring the session back, and one that
+ * finishes after a login would switch back to the old account.
+ *
+ * The lock is synchronous: never call this while this process is renewing.
+ */
+export async function withSessionLock<T>(fn: () => T | Promise<T>): Promise<T> {
+  const release = acquireRefreshLock();
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
 interface TokenEndpointBody {
   access_token?: string;
   refresh_token?: string;
@@ -262,9 +279,8 @@ function sharedRefresh(rejected?: string): Promise<string> {
 }
 
 /** `rejected`: a token the server refused — renew even if it looks valid here. */
-async function refreshUnderLock(rejected?: string): Promise<string> {
-  const release = acquireRefreshLock();
-  try {
+function refreshUnderLock(rejected?: string): Promise<string> {
+  return withSessionLock(async () => {
     // Re-read AFTER the lock — a sibling may have renewed while we waited.
     const cfg = readConfig();
     if (cfg.token && cfg.token !== rejected && tokenStillValid(cfg)) return cfg.token;
@@ -293,9 +309,7 @@ async function refreshUnderLock(rejected?: string): Promise<string> {
     if (latest.token && latest.token !== cfg.token && tokenStillValid(latest)) return latest.token;
     if (body.error === 'invalid_grant') throw new SessionEndedError();
     throw new Error(`QuickDesign could not renew the session (HTTP ${res.status}). Try again.`);
-  } finally {
-    release();
-  }
+  });
 }
 
 /**
@@ -324,7 +338,7 @@ export async function currentBearer(): Promise<{ token: string | undefined; rene
   return { token: await refreshAccessToken(), renewable };
 }
 
-/** Best effort: tell the server to forget this session (`logout`). Never throws. */
+/** Best effort: tell the server to forget this session (`logout`, or the one a login replaced). Never throws. */
 export async function revokeSession(cfg: StoredConfig = readConfig()): Promise<void> {
   if (cfg.authType !== 'oauth' || !cfg.refreshToken) return;
   try {

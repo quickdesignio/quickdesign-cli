@@ -109,7 +109,7 @@ test('logout revokes the session at the server and removes the file', async () =
   assert.equal(readAuth(home), null);
 });
 
-test('login --token stores a pasted token that is never renewed', async () => {
+test('login --token stores a pasted token that is never renewed, and revokes the session it replaces', async () => {
   bff = await fakeBff(() => ({ status: 500 }));
   writeAuth(home, session());
   const pasted = jwtWith({ sub: 'user-2', email: 'a@b.co', exp: nowS() + 600 });
@@ -120,4 +120,6 @@ test('login --token stores a pasted token that is never renewed', async () => {
   assert.equal(saved.authType, undefined);
   assert.equal(saved.refreshToken, undefined);
   assert.equal(saved.userId, 'user-2');
+  // Best effort: the server's 500 does not undo the login.
+  assert.deepEqual(bff.calls.map((c) => [c.path, c.body.token]), [['/api/mcp/oauth/revoke', 'r1']]);
 });

@@ -21,6 +21,7 @@ import {
   configPath,
   parseJwtExpiry,
   tokenStillValid,
+  withSessionLock,
   type StoredConfig,
 } from '../config.js';
 import { request, ApiError } from '../client.js';
@@ -31,10 +32,12 @@ export async function loginAction(opts: LoginOpts): Promise<void> {
   try {
     const tok = opts.token ?? (opts.tokenStdin ? await readStdinLine() : undefined);
     if (tok) {
-      saveToken(tok);
+      await saveToken(tok);
       return;
     }
-    writeSession(await deviceLogin({ timeoutMs: opts.timeout }));
+    // Waiting for approval can take minutes: only the write takes the lock.
+    const session = await deviceLogin({ timeoutMs: opts.timeout });
+    await replaceSession(() => writeSession(session), session.refreshToken);
     const cfg = readConfig();
     process.stderr.write(
       `\n${kleur.green().bold('✓ Login successful')}\n` +
@@ -48,9 +51,27 @@ export async function loginAction(opts: LoginOpts): Promise<void> {
   }
 }
 
+/**
+ * Store a new session under the renewal lock — a sibling mid-renewal would
+ * otherwise write the old account back over it — then revoke the session it
+ * replaced (best effort; never the new one).
+ */
+async function replaceSession(write: (previous: StoredConfig) => void, newRefreshToken?: string): Promise<void> {
+  const previous = await withSessionLock(() => {
+    const current = readConfig();
+    write(current);
+    return current;
+  });
+  if (previous.refreshToken !== newRefreshToken) await revokeSession(previous);
+}
+
 async function logoutAction(): Promise<void> {
-  await revokeSession();
-  clearConfig();
+  // Under the lock, a sibling's renewal finishes first: the token revoked is
+  // the live one, and nothing writes the session back afterwards.
+  await withSessionLock(async () => {
+    await revokeSession(readConfig());
+    clearConfig();
+  });
   note(`Removed ${configPath()}`);
 }
 
@@ -178,9 +199,12 @@ export function registerAuthCommands(program: Command): void {
         if (!key) fail('Usage: quickdesign auth config set <key> <value>', 2);
         if (CREDENTIAL_KEYS.has(key!)) fail('Credentials are set by `quickdesign login` (or `login --token`).', 2);
         if (value === undefined) fail('Missing value', 2);
-        const cfg = readConfig() as Record<string, unknown>;
-        cfg[key!] = value;
-        writeConfig(cfg as never);
+        // Locked, so a sibling's renewal is not overwritten with the old tokens.
+        await withSessionLock(() => {
+          const cfg = readConfig() as Record<string, unknown>;
+          cfg[key!] = value;
+          writeConfig(cfg as never);
+        });
         note(`Set ${key} in ${configPath()}`);
         return;
       }
@@ -188,18 +212,19 @@ export function registerAuthCommands(program: Command): void {
     });
 }
 
-function saveToken(jwt: string): void {
+async function saveToken(jwt: string): Promise<void> {
   const parsed = parseJwtExpiry(jwt);
   if (!parsed) fail('Provided token is not a valid JWT', 2);
-  const existing = readConfig();
-  // A pasted token cannot renew itself: it replaces any device-login session.
-  writeConfig({
-    token: jwt,
-    userId: parsed!.userId,
-    email: parsed!.email,
-    expiresAt: parsed!.expiresAt,
-    ...(existing.baseUrl ? { baseUrl: existing.baseUrl } : {}),
-  });
+  // A pasted token cannot renew itself: it replaces (and revokes) any device-login session.
+  await replaceSession((existing) =>
+    writeConfig({
+      token: jwt,
+      userId: parsed!.userId,
+      email: parsed!.email,
+      expiresAt: parsed!.expiresAt,
+      ...(existing.baseUrl ? { baseUrl: existing.baseUrl } : {}),
+    }),
+  );
   const who = parsed!.email ?? parsed!.userId ?? '(anonymous)';
   const expISO = parsed!.expiresAt ? new Date(parsed!.expiresAt * 1000).toISOString() : '(unknown)';
   process.stderr.write(
