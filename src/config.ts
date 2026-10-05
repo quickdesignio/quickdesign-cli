@@ -2,14 +2,19 @@
  * Auth + settings are kept in ~/.config/quickdesign/auth.json (0600 on Unix).
  * No secrets leak via ls — only the owning user can read the file.
  *
- * Shape:
+ * Device-login session (CLI ≥ 0.17, `quickdesign login`):
  * {
- *   "token":     "<supabase JWT>",
- *   "userId":    "<uuid>",
- *   "email":     "you@example.com",
- *   "expiresAt": 1730000000,      // unix seconds
- *   "baseUrl":   "https://app.quickdesign.io"  // optional override
+ *   "authType":     "oauth",
+ *   "token":        "<access token, 1 h>",
+ *   "refreshToken": "<refresh token — 90 days, renewed on every use>",
+ *   "userId":       "<uuid>",
+ *   "expiresAt":    1730000000,                     // unix seconds
+ *   "baseUrl":      "https://app.quickdesign.io"    // optional override
  * }
+ *
+ * Without "authType" the token came from `login --token` or from CLI ≤ 0.16
+ * (a copy of the browser's Supabase session): it is used until it expires and
+ * never renewed.
  */
 import {
   mkdirSync,
@@ -27,6 +32,20 @@ import { join, dirname } from 'node:path';
 import { versionHeaders } from './version.js';
 
 export const DEFAULT_BASE_URL = 'https://app.quickdesign.io';
+
+/** The CLI's client id on the BFF's OAuth server (first-party, public). */
+export const CLI_CLIENT_ID = 'quickdesign-cli';
+
+/** Budget for one renewal round trip. */
+export const REFRESH_TIMEOUT_MS = 30_000;
+/**
+ * A lock older than this belongs to a dead process. It must exceed
+ * REFRESH_TIMEOUT_MS: a slow but live renewal that loses its lock lets a
+ * second process renew with the same refresh token (spec R3).
+ */
+export const LOCK_STALE_MS = 45_000;
+/** How long a process waits for a sibling's renewal before giving up. */
+export const LOCK_WAIT_MS = 60_000;
 
 /**
  * Prod Supabase REST proxy. The raw `*.supabase.co` host stopped resolving
@@ -55,22 +74,19 @@ export const DEFAULT_SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXhpanptcnl6ZXB0dWx5d3pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyMzIzNDksImV4cCI6MjA2MDgwODM0OX0.ChUrNv7wNB5sFxR34YaUZ5XLcQtcMTTCq9AwKP0mFuU';
 
 export interface StoredConfig {
+  /** 'oauth' = device-login session that renews itself. Absent = a token used until it expires. */
+  authType?: 'oauth';
   token?: string;
-  /**
-   * Supabase refresh token. Lets us mint a new access_token without prompting
-   * the user. Lives much longer than `token` (Supabase default: rotates on use,
-   * fails after long inactivity). Stored alongside the access token in
-   * ~/.config/quickdesign/auth.json (0600).
-   */
+  /** Rotates on every use. Only meaningful with authType 'oauth' (CLI ≤ 0.16 kept a Supabase one here). */
   refreshToken?: string;
   userId?: string;
   email?: string;
   /** Unix seconds, not milliseconds. */
   expiresAt?: number;
   baseUrl?: string;
-  /** Override Supabase REST base (default: DEFAULT_SUPABASE_URL). */
+  /** Override Supabase REST base — deleted in Task 3 with the last direct Supabase call. */
   supabaseUrl?: string;
-  /** Supabase anon key — required for PostgREST + auth refresh calls. */
+  /** Supabase anon key — deleted in Task 3 with the last direct Supabase call. */
   supabaseAnonKey?: string;
 }
 
@@ -142,6 +158,31 @@ export function tokenStillValid(c: StoredConfig = readConfig()): boolean {
   return c.expiresAt * 1000 > Date.now() + 60 * 1000;
 }
 
+/** The stored session cannot be renewed; the user has to run `quickdesign login`. */
+export class SessionEndedError extends Error {
+  constructor(message = 'Session ended — run `quickdesign login`.') {
+    super(message);
+    this.name = 'SessionEndedError';
+  }
+}
+
+/** Persist a device-login session. Writes a clean shape: drops CLI ≤ 0.16 Supabase fields. */
+export function writeSession(s: { accessToken: string; refreshToken: string; expiresIn: number }): void {
+  const existing = readConfig();
+  const claims = parseJwtExpiry(s.accessToken);
+  const userId = claims?.userId ?? existing.userId;
+  writeConfig({
+    authType: 'oauth',
+    token: s.accessToken,
+    refreshToken: s.refreshToken,
+    userId,
+    // Our access tokens carry no email; keep a known one for the same user.
+    email: claims?.email ?? (userId && userId === existing.userId ? existing.email : undefined),
+    expiresAt: claims?.expiresAt ?? Math.floor(Date.now() / 1000) + s.expiresIn,
+    ...(existing.baseUrl ? { baseUrl: existing.baseUrl } : {}),
+  });
+}
+
 /**
  * Effective Supabase REST base URL — env > config > hardcoded prod default.
  * `design` subcommands need this to hit PostgREST directly with the user's JWT.
@@ -168,18 +209,23 @@ function refreshLockPath(): string {
   return join(dirname(configPath()), 'refresh.lock');
 }
 
+/** Block this thread without burning CPU — the lock below is synchronous on purpose (no deps). */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 /**
- * Acquire an exclusive cross-process lock around the Supabase refresh call.
+ * Acquire an exclusive cross-process lock around a renewal.
  *
- * Supabase rotates refresh tokens — if two CLI processes refresh in parallel,
- * the loser permanently invalidates the user's stored refresh_token with
- * `refresh_token_already_used` and forces a manual re-login. This lock
- * serializes refreshes across all `quickdesign` processes on the machine.
+ * The server rotates refresh tokens on every use, so two processes renewing
+ * with the same one race; this lock serializes renewals across every
+ * `quickdesign` process on the machine (the server also tolerates a race for
+ * 30 s, but one renewal is cheaper than two).
  *
- * Stale locks (from a crashed previous process) older than `staleMs` are
- * forcibly removed before retry. Caller MUST release via the returned thunk.
+ * A lock older than `staleMs` is from a dead process and is removed. Caller
+ * MUST release via the returned thunk.
  */
-function acquireRefreshLock(timeoutMs = 30_000, staleMs = 15_000): () => void {
+function acquireRefreshLock(timeoutMs = LOCK_WAIT_MS, staleMs = LOCK_STALE_MS): () => void {
   const path = refreshLockPath();
   mkdirSync(dirname(path), { recursive: true });
   const deadline = Date.now() + timeoutMs;
@@ -202,99 +248,79 @@ function acquireRefreshLock(timeoutMs = 30_000, staleMs = 15_000): () => void {
         }
       } catch { /* lock vanished */ continue; }
       if (Date.now() > deadline) {
-        throw new Error(`Refresh lock contention timeout (>${timeoutMs}ms). Another quickdesign process may be stuck.`);
+        throw new Error(`Another quickdesign process has been renewing the session for over ${Math.round(timeoutMs / 1000)} s. Try again.`);
       }
-      // Synchronous backoff — refresh is rare and deps-free is the point.
-      const wait = Date.now() + 200;
-      while (Date.now() < wait) { /* spin */ }
+      sleepSync(200);
     }
   }
 }
 
+interface TokenEndpointBody {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  error?: string;
+}
+
+let inflightRefresh: Promise<string> | null = null;
+
 /**
- * Refresh the stored Supabase access token using the saved refresh token.
+ * Renew the stored session at the BFF (`/api/mcp/oauth/token`) and return the
+ * new access token. Concurrent callers in one process share one renewal —
+ * the file lock is synchronous, so two awaits on it in the same process would
+ * otherwise deadlock until it went stale.
  *
- * Returns the new access token on success. Throws on failure — the refresh
- * token may have been rotated, expired, or revoked, in which case the caller
- * should surface a "please log in again" error.
- *
- * Cross-process safe: takes a file lock around the actual refresh call and
- * re-reads the config after lock acquisition, so a parallel process that
- * already refreshed is detected (no duplicate refresh = no `Already Used`).
+ * Throws SessionEndedError when the session cannot be renewed (no device-login
+ * session, or the server answers invalid_grant: revoked, rotated away, or idle
+ * for 90 days). Other failures throw a retryable Error and keep the session.
  */
-export async function refreshAccessToken(): Promise<string> {
+export function refreshAccessToken(): Promise<string> {
+  if (!inflightRefresh) {
+    inflightRefresh = refreshUnderLock().finally(() => {
+      inflightRefresh = null;
+    });
+  }
+  return inflightRefresh;
+}
+
+async function refreshUnderLock(): Promise<string> {
   const release = acquireRefreshLock();
   try {
-    // Re-read AFTER lock — another process may have refreshed while we waited.
+    // Re-read AFTER the lock — a sibling may have renewed while we waited.
     const cfg = readConfig();
-    if (cfg.token && tokenStillValid(cfg)) {
-      return cfg.token;
+    if (cfg.token && tokenStillValid(cfg)) return cfg.token;
+    if (cfg.authType !== 'oauth' || !cfg.refreshToken) throw new SessionEndedError();
+
+    let res: Response;
+    try {
+      res = await fetch(`${resolveBaseUrl().replace(/\/$/, '')}/api/mcp/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...versionHeaders() },
+        body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: cfg.refreshToken, client_id: CLI_CLIENT_ID }),
+        signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      throw new Error(`Could not reach QuickDesign to renew the session (${err instanceof Error ? err.message : String(err)}). Try again.`);
     }
-    if (!cfg.refreshToken) {
-      throw new Error('No refresh token stored. Run `quickdesign auth login`.');
+    const body = (await res.json().catch(() => ({}))) as TokenEndpointBody;
+    if (res.ok && body.access_token && body.refresh_token) {
+      writeSession({ accessToken: body.access_token, refreshToken: body.refresh_token, expiresIn: body.expires_in ?? 3600 });
+      return body.access_token;
     }
-    const anonKey = resolveSupabaseAnonKey();
-    if (!anonKey) {
-      throw new Error('Missing Supabase anon key — cannot refresh token.');
-    }
-
-    const base = resolveSupabaseUrl().replace(/\/$/, '');
-    const url = `${base}/auth/v1/token?grant_type=refresh_token`;
-    // 30s cap: this fetch runs while holding the cross-process refresh lock —
-    // a hung request would wedge every quickdesign process on the machine.
-    // Note 30s exceeds the lock's 15s staleMs, so a slow-but-alive refresh can
-    // have its lock stolen (pre-existing window, unchanged).
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
-        ...versionHeaders(),
-      },
-      body: JSON.stringify({ refresh_token: cfg.refreshToken }),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Refresh failed (HTTP ${res.status}): ${text.slice(0, 200)}`);
-    }
-
-    const json = (await res.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-      expires_at?: number;
-      user?: { id?: string; email?: string };
-    };
-
-    if (!json.access_token) {
-      throw new Error('Refresh response had no access_token');
-    }
-
-    const parsed = parseJwtExpiry(json.access_token);
-    writeConfig({
-      ...cfg,
-      token: json.access_token,
-      // Supabase rotates refresh tokens; persist the new one so the next
-      // refresh doesn't fail with "Already Used".
-      refreshToken: json.refresh_token ?? cfg.refreshToken,
-      expiresAt: parsed?.expiresAt ?? json.expires_at,
-      userId: parsed?.userId ?? json.user?.id ?? cfg.userId,
-      email: parsed?.email ?? json.user?.email ?? cfg.email,
-    });
-
-    return json.access_token;
+    // A sibling whose lock went stale may have rotated the token first and
+    // left a good one behind — use it instead of logging the user out.
+    const latest = readConfig();
+    if (latest.token && latest.token !== cfg.token && tokenStillValid(latest)) return latest.token;
+    if (body.error === 'invalid_grant') throw new SessionEndedError();
+    throw new Error(`QuickDesign could not renew the session (HTTP ${res.status}). Try again.`);
   } finally {
     release();
   }
 }
 
 /**
- * Return a fresh access token. If the stored token is still valid, returns it
- * as-is. If it's expired or near expiry and a refresh token exists, transparently
- * refreshes. Throws if no token is configured at all.
+ * A usable access token: QUICKDESIGN_TOKEN if set, else the stored one,
+ * renewed when it is about to expire. undefined = not logged in.
  */
 export async function ensureFreshToken(): Promise<string | undefined> {
   // Env override always wins — assume the operator knows it's fresh.
@@ -304,8 +330,21 @@ export async function ensureFreshToken(): Promise<string | undefined> {
   const cfg = readConfig();
   if (!cfg.token) return undefined;
   if (tokenStillValid(cfg)) return cfg.token;
-
-  // Expired access_token: try to refresh.
-  if (!cfg.refreshToken) return cfg.token; // legacy session — let the caller hit 401
+  if (cfg.authType !== 'oauth') throw new SessionEndedError();
   return refreshAccessToken();
+}
+
+/** Best effort: tell the server to forget this session (`logout`). Never throws. */
+export async function revokeSession(cfg: StoredConfig = readConfig()): Promise<void> {
+  if (cfg.authType !== 'oauth' || !cfg.refreshToken) return;
+  try {
+    await fetch(`${resolveBaseUrl().replace(/\/$/, '')}/api/mcp/oauth/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...versionHeaders() },
+      body: JSON.stringify({ token: cfg.refreshToken, token_type_hint: 'refresh_token', client_id: CLI_CLIENT_ID }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    // Offline: the local logout still happens.
+  }
 }

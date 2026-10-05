@@ -10,6 +10,7 @@ import {
   ensureFreshToken,
   resolveSupabaseUrl,
   resolveSupabaseAnonKey,
+  SessionEndedError,
 } from './config.js';
 import { parseSse, type SseFrame } from './utils/sse.js';
 import { versionHeaders } from './version.js';
@@ -53,6 +54,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The bearer for a request, renewing the session when needed. An ended
+ * session becomes one actionable line; a failed renewal keeps its own
+ * message (it never carries a server's response body).
+ */
+async function bearerFor(path: string): Promise<string | undefined> {
+  try {
+    return await ensureFreshToken();
+  } catch (err) {
+    if (err instanceof SessionEndedError) {
+      throw new ApiError(err.message, 401, { code: 'SESSION_ENDED' }, path);
+    }
+    throw new ApiError(err instanceof Error ? err.message : String(err), 401, { code: 'TOKEN_REFRESH_FAILED' }, path);
+  }
+}
+
 function buildUrl(path: string, query?: RequestOptions['query']): string {
   const base = resolveBaseUrl().replace(/\/$/, '');
   const clean = path.startsWith('/') ? path : `/${path}`;
@@ -76,20 +93,7 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
 
   const wantAuth = opts.auth !== false;                             // default true
   if (wantAuth) {
-    // Transparently refreshes a near-expired access_token if a refresh token is
-    // stored. Throws only when refresh fails outright — the caller surfaces a
-    // "log in again" message in that case.
-    let token: string | undefined;
-    try {
-      token = await ensureFreshToken();
-    } catch (err) {
-      throw new ApiError(
-        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
-        401,
-        { code: 'TOKEN_REFRESH_FAILED' },
-        path,
-      );
-    }
+    const token = await bearerFor(path);
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
@@ -165,17 +169,7 @@ export async function* streamSse<T = unknown>(
 
   const wantAuth = opts.auth !== false;
   if (wantAuth) {
-    let token: string | undefined;
-    try {
-      token = await ensureFreshToken();
-    } catch (err) {
-      throw new ApiError(
-        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
-        401,
-        { code: 'TOKEN_REFRESH_FAILED' },
-        path,
-      );
-    }
+    const token = await bearerFor(path);
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
@@ -257,17 +251,7 @@ export async function requestSupabase<T = unknown>(
 
   const wantAuth = opts.auth !== false;
   if (wantAuth) {
-    let token: string | undefined;
-    try {
-      token = await ensureFreshToken();
-    } catch (err) {
-      throw new ApiError(
-        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
-        401,
-        { code: 'TOKEN_REFRESH_FAILED' },
-        path,
-      );
-    }
+    const token = await bearerFor(path);
     if (!token) {
       throw new ApiError(
         'Not logged in. Run `quickdesign auth login` or set QUICKDESIGN_TOKEN.',
