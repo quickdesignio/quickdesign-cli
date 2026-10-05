@@ -20,6 +20,8 @@ const STATUS_PATH = '/api/async-seedance-video/status';
 /** The BFF downloads and probes the reference (≤200 MB) before it answers 202. */
 const START_TIMEOUT_MS = 280_000;
 const MAX_PRODUCTS = 3;
+/** Mirrors MAX_NOTES_CHARS in the BFF (services/replicateVideo/types.ts). */
+const MAX_NOTES_CHARS = 500;
 const FAILED = ['failed', 'timeout', 'cancelled'];
 
 interface ReplicateStartResponse {
@@ -36,6 +38,7 @@ interface ReplicateOpts {
   product: string[];
   modelImage?: string;
   brandKit?: string;
+  notes?: string;
   language: 'tr' | 'en';
   resolution: '720p' | '1080p';
   wait?: boolean;
@@ -59,6 +62,10 @@ export function registerVideoReplicateCommands(video: Command): void {
     )
     .option('--model-image <url|path>', 'Person to cast (omit for one new person unlike the original actor; auto-uploaded)')
     .option('--brand-kit <id>', 'Brand kit UUID — its logo replaces the reference logo; name/offer/voice steer the script')
+    .option(
+      '--notes <text>',
+      `Notes for the AI about your product (≤${MAX_NOTES_CHARS} chars), e.g. "925 silver adjustable ring, show it on the index finger, mention it is handmade" — steers what the product is and what the script stresses, never the swaps or timing`,
+    )
     .addOption(new Option('--language <code>', 'Voiceover and on-screen text language').choices(['tr', 'en']).default('en'))
     .addOption(new Option('--resolution <res>', 'Output resolution').choices(['720p', '1080p']).default('720p'))
     .option('--wait', 'Block until the video is ready', false)
@@ -69,6 +76,10 @@ export function registerVideoReplicateCommands(video: Command): void {
         const products = opts.product ?? [];
         if (products.length < 1 || products.length > MAX_PRODUCTS) {
           fail(`Pass 1–${MAX_PRODUCTS} --product images (got ${products.length}).`, 2);
+        }
+        const notes = opts.notes?.trim();
+        if (notes && notes.length > MAX_NOTES_CHARS) {
+          fail(`--notes can be at most ${MAX_NOTES_CHARS} characters (got ${notes.length}).`, 2);
         }
 
         const locals = [opts.video, ...products, opts.modelImage].filter(
@@ -99,6 +110,7 @@ export function registerVideoReplicateCommands(video: Command): void {
               productImageUrls,
               ...(modelImageUrl ? { modelImageUrl } : {}),
               ...(opts.brandKit ? { brandKitId: opts.brandKit } : {}),
+              ...(notes ? { notes } : {}),
               language: opts.language,
               resolution: opts.resolution,
               source: 'cli',
