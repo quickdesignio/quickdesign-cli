@@ -136,8 +136,14 @@ export class SessionEndedError extends Error {
   }
 }
 
-/** Persist a device-login session. Writes a clean shape: drops CLI ≤ 0.16 Supabase fields. */
-export function writeSession(s: { accessToken: string; refreshToken: string; expiresIn: number }): void {
+/**
+ * Persist a device-login session. Writes a clean shape: drops CLI ≤ 0.16 Supabase fields.
+ *
+ * `expiresAt` comes from this machine's clock — when the token request was
+ * sent plus `expires_in` — not from the JWT's `exp`, so a clock that runs
+ * behind the server's still renews before the server refuses the token.
+ */
+export function writeSession(s: { accessToken: string; refreshToken: string; expiresIn: number; requestSentAt?: number }): void {
   const existing = readConfig();
   const claims = parseJwtExpiry(s.accessToken);
   const userId = claims?.userId ?? existing.userId;
@@ -148,7 +154,7 @@ export function writeSession(s: { accessToken: string; refreshToken: string; exp
     userId,
     // Our access tokens carry no email; keep a known one for the same user.
     email: claims?.email ?? (userId && userId === existing.userId ? existing.email : undefined),
-    expiresAt: claims?.expiresAt ?? Math.floor(Date.now() / 1000) + s.expiresIn,
+    expiresAt: Math.floor((s.requestSentAt ?? Date.now()) / 1000) + s.expiresIn,
     ...(existing.baseUrl ? { baseUrl: existing.baseUrl } : {}),
   });
 }
@@ -224,22 +230,47 @@ let inflightRefresh: Promise<string> | null = null;
  * for 90 days). Other failures throw a retryable Error and keep the session.
  */
 export function refreshAccessToken(): Promise<string> {
+  return sharedRefresh();
+}
+
+/**
+ * The server refused `rejected` (401 TOKEN_EXPIRED / INVALID_TOKEN) although
+ * this machine still thinks it is valid — its clock runs behind, or the
+ * server's keys changed. Renew anyway and return a different token.
+ *
+ * Shares the in-flight renewal with refreshAccessToken: parallel rejections in
+ * one process make one `/token` call, and a sibling process that already
+ * renewed wins without a call (re-read under the lock). Throws like
+ * refreshAccessToken.
+ */
+export async function renewRejected(rejected: string): Promise<string> {
+  const pending = inflightRefresh;
+  if (pending) {
+    const token = await pending;
+    if (token !== rejected) return token;
+  }
+  return sharedRefresh(rejected);
+}
+
+function sharedRefresh(rejected?: string): Promise<string> {
   if (!inflightRefresh) {
-    inflightRefresh = refreshUnderLock().finally(() => {
+    inflightRefresh = refreshUnderLock(rejected).finally(() => {
       inflightRefresh = null;
     });
   }
   return inflightRefresh;
 }
 
-async function refreshUnderLock(): Promise<string> {
+/** `rejected`: a token the server refused — renew even if it looks valid here. */
+async function refreshUnderLock(rejected?: string): Promise<string> {
   const release = acquireRefreshLock();
   try {
     // Re-read AFTER the lock — a sibling may have renewed while we waited.
     const cfg = readConfig();
-    if (cfg.token && tokenStillValid(cfg)) return cfg.token;
+    if (cfg.token && cfg.token !== rejected && tokenStillValid(cfg)) return cfg.token;
     if (cfg.authType !== 'oauth' || !cfg.refreshToken) throw new SessionEndedError();
 
+    const requestSentAt = Date.now();
     let res: Response;
     try {
       res = await fetch(`${resolveBaseUrl().replace(/\/$/, '')}/api/mcp/oauth/token`, {
@@ -253,7 +284,7 @@ async function refreshUnderLock(): Promise<string> {
     }
     const body = (await res.json().catch(() => ({}))) as TokenEndpointBody;
     if (res.ok && body.access_token && body.refresh_token) {
-      writeSession({ accessToken: body.access_token, refreshToken: body.refresh_token, expiresIn: body.expires_in ?? 3600 });
+      writeSession({ accessToken: body.access_token, refreshToken: body.refresh_token, expiresIn: body.expires_in ?? 3600, requestSentAt });
       return body.access_token;
     }
     // A sibling whose lock went stale may have rotated the token first and
@@ -272,15 +303,25 @@ async function refreshUnderLock(): Promise<string> {
  * renewed when it is about to expire. undefined = not logged in.
  */
 export async function ensureFreshToken(): Promise<string | undefined> {
+  return (await currentBearer()).token;
+}
+
+/**
+ * ensureFreshToken, plus whether the token came from a stored device-login
+ * session — the only kind renewRejected can replace when the server refuses
+ * it (QUICKDESIGN_TOKEN and pasted or CLI ≤ 0.16 tokens cannot renew).
+ */
+export async function currentBearer(): Promise<{ token: string | undefined; renewable: boolean }> {
   // Env override always wins — assume the operator knows it's fresh.
   const envTok = process.env.QUICKDESIGN_TOKEN?.trim();
-  if (envTok) return envTok;
+  if (envTok) return { token: envTok, renewable: false };
 
   const cfg = readConfig();
-  if (!cfg.token) return undefined;
-  if (tokenStillValid(cfg)) return cfg.token;
-  if (cfg.authType !== 'oauth') throw new SessionEndedError();
-  return refreshAccessToken();
+  const renewable = cfg.authType === 'oauth';
+  if (!cfg.token) return { token: undefined, renewable: false };
+  if (tokenStillValid(cfg)) return { token: cfg.token, renewable };
+  if (!renewable) throw new SessionEndedError();
+  return { token: await refreshAccessToken(), renewable };
 }
 
 /** Best effort: tell the server to forget this session (`logout`). Never throws. */

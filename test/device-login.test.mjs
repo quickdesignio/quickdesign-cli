@@ -63,7 +63,8 @@ test('prints the code and URL, opens the browser, and polls until approved', asy
   const h = harness([START, err('authorization_pending'), err('authorization_pending'), TOKENS]);
   const session = await deviceLogin({}, h.deps);
 
-  assert.deepEqual(session, { accessToken: 'a1', refreshToken: 'r1', expiresIn: 3600 });
+  // requestSentAt: the virtual clock when the approving poll was sent (three 5 s sleeps).
+  assert.deepEqual(session, { accessToken: 'a1', refreshToken: 'r1', expiresIn: 3600, requestSentAt: 15000 });
   assert.equal(h.calls[0].url, 'http://bff.test/api/mcp/oauth/device_authorization');
   assert.deepEqual(h.calls[0].body, { client_id: 'quickdesign-cli', scope: 'mcp.tools' });
   assert.equal(h.calls[1].url, 'http://bff.test/api/mcp/oauth/token');

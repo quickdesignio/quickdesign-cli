@@ -19,6 +19,8 @@ export interface DeviceSession {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  /** When the request that returned these tokens was sent (ms) — writeSession counts expires_in from it. */
+  requestSentAt: number;
 }
 
 /** Seams for tests: network, clock, output and browser. */
@@ -96,6 +98,7 @@ export async function deviceLogin(opts: { timeoutMs?: number } = {}, deps: Devic
   const deadline = now() + Math.min(start.expires_in * 1000, opts.timeoutMs ?? Number.POSITIVE_INFINITY);
   while (now() < deadline) {
     await sleep(interval);
+    const requestSentAt = now();
     let res: Response;
     try {
       res = await doFetch(`${base}/api/mcp/oauth/token`, {
@@ -109,7 +112,7 @@ export async function deviceLogin(opts: { timeoutMs?: number } = {}, deps: Devic
     }
     const body = (await res.json().catch(() => ({}))) as TokenPoll;
     if (res.ok && body.access_token && body.refresh_token) {
-      return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresIn: body.expires_in ?? 3600 };
+      return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresIn: body.expires_in ?? 3600, requestSentAt };
     }
     if (body.error === 'authorization_pending' || res.status >= 500) continue;
     // A 429 (rate limiter or proxy), whatever its body, means the same as slow_down.

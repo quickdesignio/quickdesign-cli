@@ -55,6 +55,28 @@ test('an expired session renews at the BFF and stores the new pair', async () =>
   assert.ok(saved.expiresAt > nowS() + 3000);
 });
 
+test("expiresAt counts expires_in from this machine's clock, not the token's exp", async () => {
+  // A server clock far ahead of this one: by the JWT's exp the token is long expired.
+  const pair = { access_token: jwtWith({ sub: 'user-1', exp: nowS() - 86400 }), refresh_token: 'r2', expires_in: 3600 };
+  bff = await fakeBff(() => ({ json: pair }));
+  writeAuth(home, expiredSession());
+
+  const before = nowS();
+  assert.equal(await cfg.ensureFreshToken(), pair.access_token);
+  const after = nowS();
+
+  const { expiresAt } = readAuth(home);
+  assert.ok(expiresAt >= before + 3600 && expiresAt <= after + 3600, `expiresAt ${expiresAt}, now ${after}`);
+  // Valid here for an hour: the next command does not renew again.
+  assert.equal(await cfg.ensureFreshToken(), pair.access_token);
+  assert.equal(bff.calls.length, 1);
+});
+
+test('writeSession counts expires_in from when the token request was sent', () => {
+  cfg.writeSession({ accessToken: jwtWith({ sub: 'user-1', exp: 1 }), refreshToken: 'r1', expiresIn: 3600, requestSentAt: 1_700_000_000_900 });
+  assert.equal(readAuth(home).expiresAt, 1_700_000_000 + 3600);
+});
+
 test('invalid_grant ends the session with a login hint and no server text', async () => {
   bff = await fakeBff(() => ({ status: 400, json: { error: 'invalid_grant', error_description: 'Refresh token revoked' } }));
   writeAuth(home, expiredSession());
