@@ -1,19 +1,17 @@
 /**
- * Upload a local file to QuickDesign storage via the `upload-to-r2` edge
- * function and return the resulting public URL.
+ * Upload a local file to QuickDesign storage and return its public URL.
  *
- * The Supabase edge function lives behind the production proxy (`my.quickdesign.io`),
- * not the raw `*.supabase.co` host. Auth = the user's stored JWT, plus the
- * Supabase anon key as `apikey` if it has been configured.
+ * Goes through the BFF (`POST /api/uploads`), which stores it under your
+ * account on the asset bucket. CLI ≤ 0.16 called the `upload-to-r2` edge
+ * function with a Supabase session, which the CLI's own session cannot do.
  */
 import { readFileSync, statSync } from 'node:fs';
 import { basename, extname } from 'node:path';
-import {
-  ensureFreshToken,
-  resolveSupabaseUrl,
-  resolveSupabaseAnonKey,
-} from '../config.js';
-import { versionHeaders } from '../version.js';
+import { ensureFreshToken } from '../config.js';
+import { ApiError, request } from '../client.js';
+
+/** The server's cap. Checked locally so a huge file fails before it is read. */
+export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
 
 const CONTENT_TYPE_BY_EXT: Record<string, string> = {
   webp: 'image/webp',
@@ -44,51 +42,40 @@ export async function uploadLocalFile(localPath: string, remoteName?: string): P
   if (!stat.isFile()) {
     throw new Error(`Not a file: ${localPath}`);
   }
-
-  const token = await ensureFreshToken();
-  if (!token) {
-    throw new Error('Not authenticated. Run `quickdesign auth login` first.');
+  if (stat.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`${basename(localPath)} is ${(stat.size / 1048576).toFixed(1)} MB; uploads are limited to 200 MB.`);
+  }
+  if (!(await ensureFreshToken())) {
+    throw new Error('Not logged in. Run `quickdesign login` first.');
   }
 
   const buf = readFileSync(localPath);
   const ext = extname(localPath).toLowerCase().replace(/^\./, '') || 'bin';
   const contentType = CONTENT_TYPE_BY_EXT[ext] ?? 'application/octet-stream';
-  const originalName = basename(localPath);
   // A caller may pin the name (social uses a content hash so a retry reuses the URL).
   const name = remoteName ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
   const form = new FormData();
-  form.append('file', new Blob([buf], { type: contentType }), originalName);
+  form.append('file', new Blob([buf], { type: contentType }), basename(localPath));
   form.append('filename', name);
-  form.append('contentType', contentType);
 
-  const base = resolveSupabaseUrl().replace(/\/$/, '');
-  const endpoint = `${base}/functions/v1/upload-to-r2`;
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    ...versionHeaders(),
-  };
-  const anonKey = resolveSupabaseAnonKey();
-  if (anonKey) headers.apikey = anonKey;
-
-  // 5 min budget — reference videos can be large.
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: form,
-    signal: AbortSignal.timeout(300_000),
-  });
-  const text = await res.text();
-  let parsed: { success?: boolean; publicUrl?: string; error?: string } = {};
+  let res: { success?: boolean; publicUrl?: string };
   try {
-    parsed = JSON.parse(text) as typeof parsed;
-  } catch {
-    throw new Error(`Upload failed (HTTP ${res.status}): non-JSON response — ${text.slice(0, 200)}`);
+    // 5 min budget — reference videos can be large.
+    res = await request<{ success?: boolean; publicUrl?: string }>('/api/uploads', {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(300_000),
+    });
+  } catch (err) {
+    // nginx may answer 413 with an HTML page before the BFF sees the request.
+    if (err instanceof ApiError && err.status === 413) {
+      throw new Error(`${basename(localPath)} is too large; uploads are limited to 200 MB.`);
+    }
+    throw err;
   }
-  if (!res.ok || !parsed.success || !parsed.publicUrl) {
-    throw new Error(`Upload failed (HTTP ${res.status}): ${parsed.error || text.slice(0, 200)}`);
-  }
-  return parsed.publicUrl;
+  if (!res.publicUrl) throw new Error('Upload failed: the server returned no URL.');
+  return res.publicUrl;
 }
 
 /**

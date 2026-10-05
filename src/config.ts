@@ -47,32 +47,6 @@ export const LOCK_STALE_MS = 45_000;
 /** How long a process waits for a sibling's renewal before giving up. */
 export const LOCK_WAIT_MS = 60_000;
 
-/**
- * Prod Supabase REST proxy. The raw `*.supabase.co` host stopped resolving
- * publicly — `my.quickdesign.io` is the production proxy in front of it. Env
- * override (`QUICKDESIGN_SUPABASE_URL`) still wins.
- */
-export const DEFAULT_SUPABASE_URL = 'https://my.quickdesign.io';
-
-/**
- * Public Supabase anon key. The same value is shipped in the SPA bundle
- * (`src/lib/supabase.ts`) — RLS gates everything so the key alone grants no
- * privileges. Keeps `design` subcommands and the refresh-token flow working
- * out of the box without making the user run `quickdesign auth config set
- * supabase_anon_key …`. Env override still wins.
- *
- * ROTATION NOTE: this is the legacy HS256 anon JWT. A Supabase key rotation
- * is planned; when the legacy keys are revoked this default dies in every
- * published CLI version. The resolver below is shape-agnostic (env > config >
- * this fallback), so the new `sb_publishable_...` key works without a code
- * change — users on old versions self-rescue via
- * `QUICKDESIGN_SUPABASE_ANON_KEY=<key>` or
- * `quickdesign auth config set supabase_anon_key <key>`. A new release must
- * swap this literal at rotation time.
- */
-export const DEFAULT_SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXhpanptcnl6ZXB0dWx5d3pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyMzIzNDksImV4cCI6MjA2MDgwODM0OX0.ChUrNv7wNB5sFxR34YaUZ5XLcQtcMTTCq9AwKP0mFuU';
-
 export interface StoredConfig {
   /** 'oauth' = device-login session that renews itself. Absent = a token used until it expires. */
   authType?: 'oauth';
@@ -84,10 +58,6 @@ export interface StoredConfig {
   /** Unix seconds, not milliseconds. */
   expiresAt?: number;
   baseUrl?: string;
-  /** Override Supabase REST base — deleted in Task 3 with the last direct Supabase call. */
-  supabaseUrl?: string;
-  /** Supabase anon key — deleted in Task 3 with the last direct Supabase call. */
-  supabaseAnonKey?: string;
 }
 
 export function configPath(): string {
@@ -181,27 +151,6 @@ export function writeSession(s: { accessToken: string; refreshToken: string; exp
     expiresAt: claims?.expiresAt ?? Math.floor(Date.now() / 1000) + s.expiresIn,
     ...(existing.baseUrl ? { baseUrl: existing.baseUrl } : {}),
   });
-}
-
-/**
- * Effective Supabase REST base URL — env > config > hardcoded prod default.
- * `design` subcommands need this to hit PostgREST directly with the user's JWT.
- */
-export function resolveSupabaseUrl(): string {
-  return (
-    process.env.QUICKDESIGN_SUPABASE_URL?.trim()
-    || readConfig().supabaseUrl
-    || DEFAULT_SUPABASE_URL
-  );
-}
-
-/**
- * Effective Supabase anon key — env > config > hardcoded SPA-public default.
- */
-export function resolveSupabaseAnonKey(): string | undefined {
-  const env = process.env.QUICKDESIGN_SUPABASE_ANON_KEY?.trim();
-  if (env) return env;
-  return readConfig().supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY;
 }
 
 /** Path to the refresh-mutex lockfile. */

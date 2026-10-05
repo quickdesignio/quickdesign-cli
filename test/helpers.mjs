@@ -27,8 +27,6 @@ export function tempHome() {
   homes.push(home);
   process.env.HOME = home;
   process.env.QUICKDESIGN_NO_BROWSER = '1';
-  // Until Task 3 removes the Supabase path, nothing may reach production.
-  process.env.QUICKDESIGN_SUPABASE_URL = 'http://127.0.0.1:9';
   delete process.env.QUICKDESIGN_TOKEN;
   return home;
 }

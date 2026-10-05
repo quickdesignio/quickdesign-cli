@@ -5,13 +5,7 @@
  *  - normalizes errors → ApiError (with status + server body)
  *  - supports JSON responses + raw streaming (for SSE endpoints)
  */
-import {
-  resolveBaseUrl,
-  ensureFreshToken,
-  resolveSupabaseUrl,
-  resolveSupabaseAnonKey,
-  SessionEndedError,
-} from './config.js';
+import { resolveBaseUrl, ensureFreshToken, SessionEndedError } from './config.js';
 import { parseSse, type SseFrame } from './utils/sse.js';
 import { versionHeaders } from './version.js';
 
@@ -206,88 +200,4 @@ export async function* streamSse<T = unknown>(
   }
 
   yield* parseSse<T>(res.body);
-}
-
-/**
- * Call Supabase's PostgREST directly with the user's JWT.
- *
- * `designs` and other user-owned tables have RLS that filters on
- * `createdBy = auth.uid()`, so using the anon key + the user's JWT is both
- * safe and matches the frontend's pattern (see
- * `src/components/AssetSelectionModal/utils/supabaseQuery.ts`).
- *
- * Returns the parsed JSON body; set `opts.raw = true` to get the Response.
- */
-export async function requestSupabase<T = unknown>(
-  path: string,
-  opts: RequestOptions = {},
-): Promise<T> {
-  const base = resolveSupabaseUrl().replace(/\/$/, '');
-  const clean = path.startsWith('/') ? path : `/${path}`;
-  const url = new URL(`${base}${clean}`);
-  if (opts.query) {
-    for (const [k, v] of Object.entries(opts.query)) {
-      if (v === undefined || v === null) continue;
-      url.searchParams.set(k, String(v));
-    }
-  }
-
-  const anonKey = resolveSupabaseAnonKey();
-  if (!anonKey) {
-    throw new ApiError(
-      'Supabase anon key is not configured. Set QUICKDESIGN_SUPABASE_ANON_KEY or run `quickdesign config set supabase_anon_key <key>`.',
-      500,
-      { code: 'MISSING_ANON_KEY' },
-      path,
-    );
-  }
-
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    apikey: anonKey,
-    ...versionHeaders(),
-    ...(opts.headers ?? {}),
-  };
-
-  const wantAuth = opts.auth !== false;
-  if (wantAuth) {
-    const token = await bearerFor(path);
-    if (!token) {
-      throw new ApiError(
-        'Not logged in. Run `quickdesign auth login` or set QUICKDESIGN_TOKEN.',
-        401,
-        { code: 'NO_TOKEN' },
-        path,
-      );
-    }
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  let body: BodyInit | undefined;
-  if (opts.body !== undefined && opts.body !== null) {
-    body = JSON.stringify(opts.body);
-    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
-  }
-
-  const res = await fetch(url, {
-    method: opts.method ?? (body ? 'POST' : 'GET'),
-    headers,
-    body,
-    signal: effectiveSignal(opts.signal),
-  });
-
-  const text = await res.text();
-  let parsed: unknown = text;
-  if (text) {
-    try { parsed = JSON.parse(text); } catch { /* keep text */ }
-  }
-
-  if (!res.ok) {
-    const message = (parsed as { message?: string; error?: string } | null)?.message
-      ?? (parsed as { error?: string } | null)?.error
-      ?? `${res.status} ${res.statusText}`;
-    throw new ApiError(message, res.status, parsed, path);
-  }
-
-  return parsed as T;
 }
