@@ -81,6 +81,27 @@ test('slow_down adds five seconds to the interval', async () => {
   assert.deepEqual(h.sleeps, [5000, 10000]);
 });
 
+test('a 429 while polling backs off like slow_down instead of ending the login', async () => {
+  const limited = { status: 429, json: { error: 'Too many requests from this IP, please try again later' } };
+  const h = harness([START, limited, TOKENS]);
+  assert.equal((await deviceLogin({}, h.deps)).accessToken, 'a1');
+  assert.deepEqual(h.sleeps, [5000, 10000]);
+});
+
+test('server prose in an error never reaches the user', async () => {
+  const h = harness([START, { status: 400, json: { error: 'Bad things happened' } }]);
+  await assert.rejects(deviceLogin({}, h.deps), (e) => {
+    assert.doesNotMatch(e.message, /Bad things/);
+    assert.equal(e.message, 'Login failed (HTTP 400) — run `quickdesign login` again.');
+    return true;
+  });
+});
+
+test('a rate-limited start says when to try again', async () => {
+  const h = harness([{ status: 429, json: { error: 'Too many requests from this IP, please try again later' } }]);
+  await assert.rejects(deviceLogin({}, h.deps), { message: 'Too many login attempts from this network — try again in 15 minutes.' });
+});
+
 test('a network blip does not end the login', async () => {
   const h = harness([START, new TypeError('fetch failed'), TOKENS]);
   assert.equal((await deviceLogin({}, h.deps)).accessToken, 'a1');

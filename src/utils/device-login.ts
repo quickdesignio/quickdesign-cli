@@ -47,6 +47,14 @@ interface TokenPoll {
   error?: string;
 }
 
+/**
+ * The server's OAuth error code, or undefined. `error` is not always a code:
+ * the BFF's rate limiter puts a sentence there. Never show the user prose.
+ */
+function oauthCode(error: unknown): string | undefined {
+  return typeof error === 'string' && /^[a-z_]+$/.test(error) ? error : undefined;
+}
+
 /** Only try a browser where one can open; the printed link always works. */
 function canOpenBrowser(): boolean {
   if (process.env.QUICKDESIGN_NO_BROWSER) return false;
@@ -70,7 +78,9 @@ export async function deviceLogin(opts: { timeoutMs?: number } = {}, deps: Devic
   });
   const start = (await startRes.json().catch(() => ({}))) as DeviceStart;
   if (!startRes.ok || !start.device_code || !start.user_code || !start.verification_uri || !start.expires_in) {
-    throw new Error(`Could not start login (HTTP ${startRes.status}${start.error ? `, ${start.error}` : ''}).`);
+    if (startRes.status === 429) throw new Error('Too many login attempts from this network — try again in 15 minutes.');
+    const code = oauthCode(start.error);
+    throw new Error(`Could not start login (HTTP ${startRes.status}${code ? `, ${code}` : ''}) — try again in a minute.`);
   }
 
   const link = start.verification_uri_complete ?? start.verification_uri;
@@ -102,13 +112,15 @@ export async function deviceLogin(opts: { timeoutMs?: number } = {}, deps: Devic
       return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresIn: body.expires_in ?? 3600 };
     }
     if (body.error === 'authorization_pending' || res.status >= 500) continue;
-    if (body.error === 'slow_down') {
+    // A 429 (rate limiter or proxy), whatever its body, means the same as slow_down.
+    if (body.error === 'slow_down' || res.status === 429) {
       interval += 5000;
       continue;
     }
     if (body.error === 'access_denied') throw new Error('Authorization was declined.');
     if (body.error === 'expired_token') throw new Error(EXPIRED);
-    throw new Error(`Login failed (HTTP ${res.status}${body.error ? `, ${body.error}` : ''}).`);
+    const code = oauthCode(body.error);
+    throw new Error(`Login failed (HTTP ${res.status}${code ? `, ${code}` : ''}) — run \`quickdesign login\` again.`);
   }
   throw new Error(EXPIRED);
 }
