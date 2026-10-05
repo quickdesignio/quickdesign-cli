@@ -83,7 +83,12 @@ export function registerBrandCommands(program: Command): void {
           emitJson(final);
         }
       } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
+        // A session that ended or failed to renew already says what to do.
+        const authCode = err instanceof ApiError ? (err.body as { code?: string } | null)?.code : undefined;
+        if (
+          err instanceof ApiError && err.status === 401
+          && authCode !== 'SESSION_ENDED' && authCode !== 'TOKEN_REFRESH_FAILED'
+        ) {
           note('Hint: Brand DNA requires auth. Run `quickdesign login` first.');
         }
         fail(err);

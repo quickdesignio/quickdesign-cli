@@ -147,3 +147,21 @@ test('commands report an ended session as one actionable line', async () => {
   assert.match(stderr, /Session ended — run `quickdesign login`\./);
   assert.equal(bff.calls.length, 0);
 });
+
+// --output events: no spinner, so stderr holds only what the auth path prints.
+test('brand dna shows an ended session as one line, without its login hint', async () => {
+  bff = await fakeBff(() => ({ status: 500 }));
+  writeAuth(home, { token: 'legacy', expiresAt: nowS() - 10 });
+  const { code, stderr } = await runCli(['brand', 'dna', 'https://brand.test', '--output', 'events']);
+  assert.equal(code, 1);
+  assert.deepEqual(stderr.trim().split('\n'), ['error Session ended — run `quickdesign login`.']);
+  assert.equal(bff.calls.length, 0);
+});
+
+test('brand dna does not tell the user to log in when a renewal only failed', async () => {
+  bff = await fakeBff(() => ({ status: 503, json: { error: 'server_error' } }));
+  writeAuth(home, expiredSession());
+  const { code, stderr } = await runCli(['brand', 'dna', 'https://brand.test', '--output', 'events']);
+  assert.equal(code, 1);
+  assert.deepEqual(stderr.trim().split('\n'), ['error QuickDesign could not renew the session (HTTP 503). Try again.']);
+});

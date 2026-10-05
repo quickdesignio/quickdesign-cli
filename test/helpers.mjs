@@ -3,7 +3,7 @@
  * first). Every test gets its own HOME (where auth.json lives) and talks to a
  * fake BFF on 127.0.0.1 — never the real config or network.
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createServer } from 'node:http';
@@ -16,11 +16,19 @@ export const nowS = () => Math.floor(Date.now() / 1000);
 export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const plain = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
-/** A fresh HOME for this process; clears env that would bypass the stored session. */
+const homes = [];
+process.on('exit', () => {
+  for (const dir of homes) rmSync(dir, { recursive: true, force: true });
+});
+
+/** A fresh HOME for this process (removed on exit); clears env that would bypass the stored session. */
 export function tempHome() {
   const home = mkdtempSync(join(tmpdir(), 'qd-cli-test-'));
+  homes.push(home);
   process.env.HOME = home;
   process.env.QUICKDESIGN_NO_BROWSER = '1';
+  // Until Task 3 removes the Supabase path, nothing may reach production.
+  process.env.QUICKDESIGN_SUPABASE_URL = 'http://127.0.0.1:9';
   delete process.env.QUICKDESIGN_TOKEN;
   return home;
 }
