@@ -1,5 +1,6 @@
 import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { plain, tempHome } from './helpers.mjs';
 
 const { deviceLogin } = await import('../dist/utils/device-login.js');
@@ -128,6 +129,35 @@ test('gives up when the code runs out locally too', async () => {
   const h = harness([short, err('authorization_pending'), err('authorization_pending')]);
   await assert.rejects(deviceLogin({}, h.deps), { message: 'Code expired — run `quickdesign login` again.' });
   assert.equal(h.calls.length, 3);
+});
+
+test('an unreachable server says what to check instead of "fetch failed"', async () => {
+  const h = harness([new TypeError('fetch failed')]);
+  await assert.rejects(deviceLogin({}, h.deps), {
+    message: 'Could not reach QuickDesign (bff.test) — check your connection or QUICKDESIGN_BASE_URL and try again.',
+  });
+});
+
+test('a browser that fails to launch does not end the login', async () => {
+  const h = harness([START, TOKENS]);
+  let emitted;
+  const launchFailed = new Promise((resolve) => {
+    emitted = resolve;
+  });
+  // Like open@10: resolves to the child process, which then emits 'error' (ENOENT, EACCES).
+  h.deps.openBrowser = async () => {
+    const child = new EventEmitter();
+    process.nextTick(() => {
+      try {
+        child.emit('error', Object.assign(new Error('spawn xdg-open ENOENT'), { code: 'ENOENT' }));
+      } finally {
+        emitted();
+      }
+    });
+    return child;
+  };
+  assert.equal((await deviceLogin({}, h.deps)).accessToken, 'a1');
+  await launchFailed;
 });
 
 test('a refused start explains itself', async () => {

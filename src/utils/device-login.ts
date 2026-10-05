@@ -57,6 +57,14 @@ function oauthCode(error: unknown): string | undefined {
   return typeof error === 'string' && /^[a-z_]+$/.test(error) ? error : undefined;
 }
 
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 /** Only try a browser where one can open; the printed link always works. */
 function canOpenBrowser(): boolean {
   if (process.env.QUICKDESIGN_NO_BROWSER) return false;
@@ -72,12 +80,17 @@ export async function deviceLogin(opts: { timeoutMs?: number } = {}, deps: Devic
   const base = resolveBaseUrl().replace(/\/$/, '');
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json', ...versionHeaders() };
 
-  const startRes = await doFetch(`${base}/api/mcp/oauth/device_authorization`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ client_id: CLI_CLIENT_ID, scope: 'mcp.tools' }),
-    signal: AbortSignal.timeout(30_000),
-  });
+  let startRes: Response;
+  try {
+    startRes = await doFetch(`${base}/api/mcp/oauth/device_authorization`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ client_id: CLI_CLIENT_ID, scope: 'mcp.tools' }),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    throw new Error(`Could not reach QuickDesign (${hostOf(base)}) — check your connection or QUICKDESIGN_BASE_URL and try again.`);
+  }
   const start = (await startRes.json().catch(() => ({}))) as DeviceStart;
   if (!startRes.ok || !start.device_code || !start.user_code || !start.verification_uri || !start.expires_in) {
     if (startRes.status === 429) throw new Error('Too many login attempts from this network — try again in 15 minutes.');
@@ -92,7 +105,13 @@ export async function deviceLogin(opts: { timeoutMs?: number } = {}, deps: Devic
   log(`  2. Enter  ${kleur.bold().green(start.user_code)}`);
   log(kleur.dim(`  (or open ${link} — on any device where you are signed in to QuickDesign)`));
   log(kleur.dim(`  Waiting for approval… the code expires in ${Math.round(start.expires_in / 60)} min.`));
-  if (canOpenBrowser()) void (deps.openBrowser ?? open)(link).catch(() => undefined);
+  if (canOpenBrowser()) {
+    // open() resolves to the spawned child: without an 'error' listener a
+    // missing or non-executable opener (ENOENT, EACCES) would crash the CLI.
+    void (deps.openBrowser ?? open)(link)
+      .then((child) => (child as { on?: (event: string, listener: () => void) => unknown } | undefined)?.on?.('error', () => undefined))
+      .catch(() => undefined);
+  }
 
   let interval = Math.max(1, start.interval ?? 5) * 1000;
   const deadline = now() + Math.min(start.expires_in * 1000, opts.timeoutMs ?? Number.POSITIVE_INFINITY);
