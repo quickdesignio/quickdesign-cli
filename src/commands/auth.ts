@@ -1,21 +1,27 @@
 /**
- * `quickdesign login|logout|whoami|config`
+ * `quickdesign login|logout|whoami|config` and `auth token`.
  *
- * Login prefers the browser OAuth handshake (opens the browser, gets the JWT
- * back via a localhost callback). `--token <jwt>` is supported as an escape
- * hatch for CI/headless environments.
+ * Login is device authorization against the BFF's OAuth server
+ * (utils/device-login.ts): the CLI prints a code, the user approves it in any
+ * signed-in browser, and the CLI keeps a session that renews itself (1 h
+ * access, 90-day sliding refresh). `--token <jwt>` stays as the CI escape
+ * hatch: such a token is used until it expires and never renewed.
  */
 import { Command } from 'commander';
 import kleur from 'kleur';
-import { browserLogin } from '../utils/browser-oauth.js';
+import { deviceLogin } from '../utils/device-login.js';
 import {
   readConfig,
   writeConfig,
+  writeSession,
   clearConfig,
+  revokeSession,
+  ensureFreshToken,
   resolveBaseUrl,
   configPath,
   parseJwtExpiry,
   tokenStillValid,
+  type StoredConfig,
 } from '../config.js';
 import { request, ApiError } from '../client.js';
 import { emitJson, fail, note } from '../utils/output.js';
@@ -28,49 +34,81 @@ export async function loginAction(opts: LoginOpts): Promise<void> {
       saveToken(tok);
       return;
     }
-    const result = await browserLogin({ timeoutMs: opts.timeout });
-    saveToken(result.token, {
-      email: result.email,
-      userId: result.userId,
-      refreshToken: result.refreshToken,
-    });
+    writeSession(await deviceLogin({ timeoutMs: opts.timeout }));
+    const cfg = readConfig();
+    process.stderr.write(
+      `\n${kleur.green().bold('✓ Login successful')}\n` +
+      `  user    : ${kleur.bold(cfg.email ?? cfg.userId ?? '(unknown)')}\n` +
+      `  session : ${kleur.dim('renews itself — stays signed in while you use it (90 days idle)')}\n` +
+      `  config  : ${configPath()}\n` +
+      `\n  ${kleur.dim('try:')} ${kleur.cyan('quickdesign whoami')}\n\n`,
+    );
   } catch (err) {
     fail(err);
   }
 }
 
-function logoutAction(): void {
+async function logoutAction(): Promise<void> {
+  await revokeSession();
   clearConfig();
   note(`Removed ${configPath()}`);
 }
 
+function sessionKind(cfg: StoredConfig): string {
+  if (process.env.QUICKDESIGN_TOKEN?.trim()) return 'QUICKDESIGN_TOKEN (env)';
+  if (cfg.authType === 'oauth') return 'device login (renews itself)';
+  return cfg.token ? 'token (expires, never renewed)' : 'none';
+}
+
 interface WhoamiOpts { json?: boolean }
 async function whoamiAction(opts: WhoamiOpts): Promise<void> {
-  const cfg = readConfig();
-  if (!cfg.token) fail('Not logged in. Run `quickdesign login`.', 2);
+  if (!readConfig().token && !process.env.QUICKDESIGN_TOKEN?.trim()) fail('Not logged in. Run `quickdesign login`.', 2);
 
-  const base = {
+  // Ping first: it renews an expired session, so what is printed is current.
+  let pingOk = false;
+  let pingError: string | undefined;
+  try {
+    await request<unknown>('/api/spy-brands/following', { query: { limit: 1 } });
+    pingOk = true;
+  } catch (err) {
+    pingError = err instanceof ApiError ? `${err.status} ${err.message}` : String(err);
+  }
+
+  const cfg = readConfig();
+  const out = {
     userId: cfg.userId,
     email: cfg.email,
     expiresAt: cfg.expiresAt,
     valid: tokenStillValid(cfg),
-    hasRefreshToken: Boolean(cfg.refreshToken),
+    session: sessionKind(cfg),
     baseUrl: resolveBaseUrl(),
     configFile: configPath(),
+    pingOk,
+    ...(pingError ? { pingError } : {}),
   };
+  if (opts.json) emitJson(out);
+  else printWhoami(out);
+}
 
-  // Best-effort live ping to confirm the token is accepted by the BFF.
+/** For scripts: `curl -H "Authorization: Bearer $(quickdesign auth token)" …`. Renews when needed. */
+async function tokenAction(): Promise<void> {
   try {
-    await request<unknown>('/api/spy-brands/following', { query: { limit: 1 } });
-    const full = { ...base, pingOk: true };
-    if (opts.json) emitJson(full);
-    else printWhoami(full);
+    const token = await ensureFreshToken();
+    if (!token) fail('Not logged in. Run `quickdesign login`.', 2);
+    process.stdout.write(`${token}\n`);
   } catch (err) {
-    const pingErr = err instanceof ApiError ? `${err.status} ${err.message}` : String(err);
-    const full = { ...base, pingOk: false, pingError: pingErr };
-    if (opts.json) emitJson(full);
-    else printWhoami(full);
+    fail(err);
   }
+}
+
+/** Credentials are never printed by `config` (the refresh token is a 90-day credential) and only set by login. */
+const SECRET_KEYS = new Set(['token', 'refreshToken']);
+const CREDENTIAL_KEYS = new Set(['token', 'refreshToken', 'authType', 'userId', 'expiresAt']);
+
+function redacted(cfg: StoredConfig): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(cfg).map(([k, v]) => [k, SECRET_KEYS.has(k) && typeof v === 'string' ? `<${v.length} chars hidden>` : v]),
+  );
 }
 
 /** Wire the login/logout/whoami trio onto a parent (top-level program OR `auth`
@@ -79,15 +117,15 @@ async function whoamiAction(opts: WhoamiOpts): Promise<void> {
 function registerAuthShortcuts(parent: Command): void {
   parent
     .command('login')
-    .description('Log in — opens a browser to finish the OAuth handshake')
-    .option('--token <jwt>', 'Use a raw Supabase JWT (CI / scripted / headless)')
-    .option('--token-stdin', 'Read the JWT from stdin (one line)')
-    .option('--timeout <ms>', 'Browser-flow timeout in ms', (v) => parseInt(v, 10), 300_000)
+    .description('Log in — prints a code to approve in your browser (works over SSH too)')
+    .option('--token <jwt>', 'Store a raw access token instead (CI / scripted; never renewed)')
+    .option('--token-stdin', 'Read that token from stdin (one line)')
+    .option('--timeout <ms>', 'Stop waiting for approval after <ms> (default: when the code expires)', (v) => parseInt(v, 10))
     .action(loginAction);
 
   parent
     .command('logout')
-    .description('Remove the stored auth token')
+    .description('Sign this CLI out (revokes the session) and remove the stored token')
     .action(logoutAction);
 
   parent
@@ -106,28 +144,39 @@ export function registerAuthCommands(program: Command): void {
   registerAuthShortcuts(auth);
 
   auth
+    .command('token')
+    .description('Print a valid access token, renewing the session if needed (for scripts)')
+    .action(tokenAction);
+
+  auth
     .command('config')
     .description('Get/set config values')
     .argument('<action>', 'get | set | path | show')
     .argument('[key]', 'Config key (e.g. baseUrl)')
     .argument('[value]', 'Config value')
-    .action((action: string, key?: string, value?: string) => {
+    .action(async (action: string, key?: string, value?: string) => {
       if (action === 'path') {
         process.stdout.write(`${configPath()}\n`);
         return;
       }
       if (action === 'show') {
-        emitJson(readConfig());
+        emitJson(redacted(readConfig()));
         return;
       }
       if (action === 'get') {
         if (!key) fail('Usage: quickdesign auth config get <key>', 2);
+        if (key === 'token') {
+          await tokenAction();
+          return;
+        }
+        if (key === 'refreshToken') fail('The refresh token is never printed. Use `quickdesign auth token` for an access token.', 2);
         const v = (readConfig() as Record<string, unknown>)[key!];
         process.stdout.write(`${v ?? ''}\n`);
         return;
       }
       if (action === 'set') {
         if (!key) fail('Usage: quickdesign auth config set <key> <value>', 2);
+        if (CREDENTIAL_KEYS.has(key!)) fail('Credentials are set by `quickdesign login` (or `login --token`).', 2);
         if (value === undefined) fail('Missing value', 2);
         const cfg = readConfig() as Record<string, unknown>;
         cfg[key!] = value;
@@ -139,34 +188,25 @@ export function registerAuthCommands(program: Command): void {
     });
 }
 
-function saveToken(
-  jwt: string,
-  extras: { email?: string; userId?: string; refreshToken?: string } = {},
-): void {
+function saveToken(jwt: string): void {
   const parsed = parseJwtExpiry(jwt);
   if (!parsed) fail('Provided token is not a valid JWT', 2);
   const existing = readConfig();
+  // A pasted token cannot renew itself: it replaces any device-login session.
   writeConfig({
-    ...existing,
     token: jwt,
-    refreshToken: extras.refreshToken ?? existing.refreshToken,
-    userId: extras.userId ?? parsed!.userId,
-    email: extras.email ?? parsed!.email,
+    userId: parsed!.userId,
+    email: parsed!.email,
     expiresAt: parsed!.expiresAt,
+    ...(existing.baseUrl ? { baseUrl: existing.baseUrl } : {}),
   });
-  const who = extras.email ?? parsed!.email ?? extras.userId ?? parsed!.userId ?? '(anonymous)';
-  const refreshNote = extras.refreshToken
-    ? kleur.dim('auto-refresh enabled')
-    : kleur.yellow('no refresh token — re-run login when this expires (~1h)');
-  const expISO = parsed!.expiresAt
-    ? new Date(parsed!.expiresAt * 1000).toISOString()
-    : '(unknown)';
+  const who = parsed!.email ?? parsed!.userId ?? '(anonymous)';
+  const expISO = parsed!.expiresAt ? new Date(parsed!.expiresAt * 1000).toISOString() : '(unknown)';
   process.stderr.write(
-    `\n${kleur.green().bold('✓ Login successful')}\n` +
+    `\n${kleur.green().bold('✓ Token stored')}\n` +
     `  user    : ${kleur.bold(who)}\n` +
-    `  expires : ${expISO}  ${refreshNote}\n` +
-    `  config  : ${configPath()}\n` +
-    `\n  ${kleur.dim('try:')} ${kleur.cyan('quickdesign whoami')}\n\n`,
+    `  expires : ${expISO}  ${kleur.yellow('never renewed — `quickdesign login` gives a session that renews itself')}\n` +
+    `  config  : ${configPath()}\n\n`,
   );
 }
 
@@ -184,6 +224,7 @@ function printWhoami(r: {
   email?: string;
   expiresAt?: number;
   valid: boolean;
+  session: string;
   baseUrl: string;
   configFile: string;
   pingOk?: boolean;
@@ -194,6 +235,7 @@ function printWhoami(r: {
     `${kleur.bold('QuickDesign CLI auth status')}\n` +
     `  user      : ${r.email ?? '(no email claim)'}\n` +
     `  userId    : ${r.userId ?? '(unknown)'}\n` +
+    `  session   : ${r.session}\n` +
     `  token exp : ${exp} ${r.valid ? kleur.green('(valid)') : kleur.red('(expired)')}\n` +
     `  baseUrl   : ${r.baseUrl}\n` +
     `  config    : ${r.configFile}\n` +
