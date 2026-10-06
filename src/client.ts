@@ -5,12 +5,7 @@
  *  - normalizes errors → ApiError (with status + server body)
  *  - supports JSON responses + raw streaming (for SSE endpoints)
  */
-import {
-  resolveBaseUrl,
-  ensureFreshToken,
-  resolveSupabaseUrl,
-  resolveSupabaseAnonKey,
-} from './config.js';
+import { resolveBaseUrl, currentBearer, renewRejected, SessionEndedError } from './config.js';
 import { parseSse, type SseFrame } from './utils/sse.js';
 import { versionHeaders } from './version.js';
 
@@ -53,6 +48,69 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A renewal failure as an ApiError. An ended session becomes one actionable
+ * line; a failed renewal keeps its own message (it never carries a server's
+ * response body).
+ */
+function renewalError(err: unknown, path: string): ApiError {
+  if (err instanceof SessionEndedError) {
+    return new ApiError(err.message, 401, { code: 'SESSION_ENDED' }, path);
+  }
+  return new ApiError(err instanceof Error ? err.message : String(err), 401, { code: 'TOKEN_REFRESH_FAILED' }, path);
+}
+
+/** The bearer for a request, renewing the session when needed. */
+async function bearerFor(path: string): Promise<{ token: string | undefined; renewable: boolean }> {
+  try {
+    return await currentBearer();
+  } catch (err) {
+    throw renewalError(err, path);
+  }
+}
+
+/** The BFF's `message` codes for a bearer it refused (auth.middleware → AppError). */
+const REJECTED_TOKEN_CODES = new Set(['TOKEN_EXPIRED', 'INVALID_TOKEN']);
+
+async function serverRejectedToken(res: Response): Promise<boolean> {
+  if (res.status !== 401) return false;
+  const body = (await res.clone().json().catch(() => null)) as { message?: unknown } | null;
+  return typeof body?.message === 'string' && REJECTED_TOKEN_CODES.has(body.message);
+}
+
+/**
+ * Send a request with the session's bearer (`send(undefined)` = no auth).
+ *
+ * When the server refuses a device-login bearer that this machine still
+ * thinks is valid (its clock runs behind, or the server's keys changed),
+ * renew the session once and send again with the new token. Only on 401
+ * TOKEN_EXPIRED / INVALID_TOKEN, never twice, never for QUICKDESIGN_TOKEN or
+ * a pasted token — those cannot renew. `send` must be callable twice: every
+ * body the client sends (JSON or plain strings, FormData, URLSearchParams) is.
+ */
+async function sendWithSession(
+  path: string,
+  wantAuth: boolean,
+  send: (token: string | undefined) => Promise<Response>,
+): Promise<Response> {
+  const bearer = wantAuth ? await bearerFor(path) : { token: undefined, renewable: false };
+  const res = await send(bearer.token);
+  if (!bearer.token || !bearer.renewable || !(await serverRejectedToken(res))) return res;
+
+  void res.body?.cancel().catch(() => undefined);              // read through the clone already
+  let renewed: string;
+  try {
+    renewed = await renewRejected(bearer.token);
+  } catch (err) {
+    throw renewalError(err, path);
+  }
+  return send(renewed);
+}
+
+function withBearer(headers: Record<string, string>, token: string | undefined): Record<string, string> {
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
+}
+
 function buildUrl(path: string, query?: RequestOptions['query']): string {
   const base = resolveBaseUrl().replace(/\/$/, '');
   const clean = path.startsWith('/') ? path : `/${path}`;
@@ -74,25 +132,7 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
     ...(opts.headers ?? {}),
   };
 
-  const wantAuth = opts.auth !== false;                             // default true
-  if (wantAuth) {
-    // Transparently refreshes a near-expired access_token if a refresh token is
-    // stored. Throws only when refresh fails outright — the caller surfaces a
-    // "log in again" message in that case.
-    let token: string | undefined;
-    try {
-      token = await ensureFreshToken();
-    } catch (err) {
-      throw new ApiError(
-        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
-        401,
-        { code: 'TOKEN_REFRESH_FAILED' },
-        path,
-      );
-    }
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
-
+  // Strings, FormData and URLSearchParams can all be sent twice (see sendWithSession).
   let body: BodyInit | undefined;
   if (opts.body !== undefined && opts.body !== null) {
     if (opts.body instanceof FormData || opts.body instanceof URLSearchParams) {
@@ -106,12 +146,10 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
     }
   }
 
-  const res = await fetch(url, {
-    method: opts.method ?? (body ? 'POST' : 'GET'),
-    headers,
-    body,
-    signal: effectiveSignal(opts.signal),
-  });
+  const method = opts.method ?? (body ? 'POST' : 'GET');
+  const res = await sendWithSession(path, opts.auth !== false, (token) =>   // auth defaults true
+    fetch(url, { method, headers: withBearer(headers, token), body, signal: effectiveSignal(opts.signal) }),
+  );
 
   if (opts.raw) {
     if (!res.ok) {
@@ -163,45 +201,33 @@ export async function* streamSse<T = unknown>(
     ...(opts.headers ?? {}),
   };
 
-  const wantAuth = opts.auth !== false;
-  if (wantAuth) {
-    let token: string | undefined;
-    try {
-      token = await ensureFreshToken();
-    } catch (err) {
-      throw new ApiError(
-        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
-        401,
-        { code: 'TOKEN_REFRESH_FAILED' },
-        path,
-      );
-    }
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
+  const payload = JSON.stringify(body ?? {});
 
   // Connect-timeout only: abort if headers don't arrive within 30s, but once
   // the stream is open let it run as long as it likes (brand-dna streams for
   // minutes). The caller's signal keeps propagating for the whole stream.
-  const controller = new AbortController();
-  const connectTimer = setTimeout(
-    () => controller.abort(new Error('SSE connect timeout (30s)')),
-    30_000,
-  );
-  if (opts.signal) {
-    opts.signal.addEventListener('abort', () => controller.abort(opts.signal!.reason), { once: true });
-  }
+  const connect = async (token: string | undefined): Promise<Response> => {
+    const controller = new AbortController();
+    const connectTimer = setTimeout(
+      () => controller.abort(new Error('SSE connect timeout (30s)')),
+      30_000,
+    );
+    if (opts.signal) {
+      opts.signal.addEventListener('abort', () => controller.abort(opts.signal!.reason), { once: true });
+    }
+    try {
+      return await fetch(url, {
+        method: 'POST',
+        headers: withBearer(headers, token),
+        body: payload,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(connectTimer);
+    }
+  };
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body ?? {}),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(connectTimer);
-  }
+  const res = await sendWithSession(path, opts.auth !== false, connect);
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -212,98 +238,4 @@ export async function* streamSse<T = unknown>(
   }
 
   yield* parseSse<T>(res.body);
-}
-
-/**
- * Call Supabase's PostgREST directly with the user's JWT.
- *
- * `designs` and other user-owned tables have RLS that filters on
- * `createdBy = auth.uid()`, so using the anon key + the user's JWT is both
- * safe and matches the frontend's pattern (see
- * `src/components/AssetSelectionModal/utils/supabaseQuery.ts`).
- *
- * Returns the parsed JSON body; set `opts.raw = true` to get the Response.
- */
-export async function requestSupabase<T = unknown>(
-  path: string,
-  opts: RequestOptions = {},
-): Promise<T> {
-  const base = resolveSupabaseUrl().replace(/\/$/, '');
-  const clean = path.startsWith('/') ? path : `/${path}`;
-  const url = new URL(`${base}${clean}`);
-  if (opts.query) {
-    for (const [k, v] of Object.entries(opts.query)) {
-      if (v === undefined || v === null) continue;
-      url.searchParams.set(k, String(v));
-    }
-  }
-
-  const anonKey = resolveSupabaseAnonKey();
-  if (!anonKey) {
-    throw new ApiError(
-      'Supabase anon key is not configured. Set QUICKDESIGN_SUPABASE_ANON_KEY or run `quickdesign config set supabase_anon_key <key>`.',
-      500,
-      { code: 'MISSING_ANON_KEY' },
-      path,
-    );
-  }
-
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    apikey: anonKey,
-    ...versionHeaders(),
-    ...(opts.headers ?? {}),
-  };
-
-  const wantAuth = opts.auth !== false;
-  if (wantAuth) {
-    let token: string | undefined;
-    try {
-      token = await ensureFreshToken();
-    } catch (err) {
-      throw new ApiError(
-        `Token refresh failed (${err instanceof Error ? err.message : String(err)}). Run \`quickdesign auth login\` again.`,
-        401,
-        { code: 'TOKEN_REFRESH_FAILED' },
-        path,
-      );
-    }
-    if (!token) {
-      throw new ApiError(
-        'Not logged in. Run `quickdesign auth login` or set QUICKDESIGN_TOKEN.',
-        401,
-        { code: 'NO_TOKEN' },
-        path,
-      );
-    }
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  let body: BodyInit | undefined;
-  if (opts.body !== undefined && opts.body !== null) {
-    body = JSON.stringify(opts.body);
-    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
-  }
-
-  const res = await fetch(url, {
-    method: opts.method ?? (body ? 'POST' : 'GET'),
-    headers,
-    body,
-    signal: effectiveSignal(opts.signal),
-  });
-
-  const text = await res.text();
-  let parsed: unknown = text;
-  if (text) {
-    try { parsed = JSON.parse(text); } catch { /* keep text */ }
-  }
-
-  if (!res.ok) {
-    const message = (parsed as { message?: string; error?: string } | null)?.message
-      ?? (parsed as { error?: string } | null)?.error
-      ?? `${res.status} ${res.statusText}`;
-    throw new ApiError(message, res.status, parsed, path);
-  }
-
-  return parsed as T;
 }

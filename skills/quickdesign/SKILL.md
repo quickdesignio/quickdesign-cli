@@ -181,9 +181,14 @@ When a new model lands that's better-fit than the current default, drop a new fi
 ## Quick start — common commands
 
 ```bash
-# Auth (one-time, browser flow)
+# Auth (one-time): prints a code + link to approve in the browser; works over SSH.
+# Inside Claude Code the USER runs it as `! quickdesign login` — an agent cannot approve it.
 quickdesign auth login
+```
 
+If any command fails with `Session ended — run quickdesign login`, stop and ask the user to run `! quickdesign login`; do not retry or work around it. Scripts that need a raw bearer use `$(quickdesign auth token)`; never read `~/.config/quickdesign/auth.json` directly (its access token lives an hour and is renewed on use).
+
+```bash
 # Image edit — angle change / state change / multi-ref product composition
 # (4:5 feed image? use --model nano-banana-2 instead — Sunburst has no 4:5)
 quickdesign image generate \

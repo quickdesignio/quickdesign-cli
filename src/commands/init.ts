@@ -6,14 +6,13 @@
  *   2. Skill install    — copy bundled skill (skills/quickdesign/) into
  *                         ~/.claude/skills/quickdesign/. Refuses to overwrite
  *                         existing files unless --force.
- *   3. Auth login       — runs the standard browser OAuth handshake to drop a
- *                         token in the user's config dir, unless --no-auth.
+ *   3. Auth login — device login (prints a code to approve in the browser), unless --no-auth.
  *
  * Flags:
  *   --force        Overwrite existing skill files.
- *   --skill-only   Only install the skill (skip doctor + auth).
+ *   --skill-only   Only install the skill (skip doctor + login).
  *   --no-skill     Skip skill install.
- *   --no-auth      Skip browser login (use this in CI / scripted setups).
+ *   --no-auth      Skip login (use this in CI / scripted setups).
  *   --no-doctor    Skip ffmpeg / ffprobe check.
  *   --skill-dir    Override target skill dir (default: ~/.claude/skills/quickdesign).
  */
@@ -134,7 +133,7 @@ async function installSkill(srcDir: string, dstDir: string, force: boolean): Pro
 async function runAuthLogin(): Promise<void> {
   // Lazy import keeps `init --no-auth` light.
   const { loginAction } = await import('./auth.js');
-  note('Opening browser for QuickDesign login…');
+  note('Starting QuickDesign login…');
   await loginAction({});
   note('Login complete.');
 }
@@ -144,9 +143,9 @@ export function registerInitCommand(program: Command): void {
     .command('init')
     .description('Bootstrap Claude Code: install bundled skill into ~/.claude/skills/quickdesign and (optionally) log in')
     .option('--force', 'Overwrite existing skill files', false)
-    .option('--skill-only', 'Only install the skill (skip doctor + auth)', false)
+    .option('--skill-only', 'Only install the skill (skip doctor + login)', false)
     .option('--no-skill', 'Skip skill install')
-    .option('--no-auth', 'Skip browser login (CI / scripted setups)')
+    .option('--no-auth', 'Skip login (CI / scripted setups)')
     .option('--no-doctor', 'Skip ffmpeg / ffprobe check')
     .option('--skill-dir <path>', 'Override target skill dir', defaultSkillTargetDir())
     .action(async (opts: InitOptions) => {

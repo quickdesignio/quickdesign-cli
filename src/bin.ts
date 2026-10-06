@@ -135,11 +135,8 @@ Examples
 
 Environment
   QUICKDESIGN_BASE_URL             Override API base (default: https://app.quickdesign.io)
-  QUICKDESIGN_TOKEN                Override stored token (CI / scripted use)
-  QUICKDESIGN_SUPABASE_URL         Override Supabase REST base (for \`design\` subcommands)
-  QUICKDESIGN_SUPABASE_ANON_KEY    Supabase API key — accepts both the legacy anon JWT and the
-                                   new sb_publishable_... key. Also settable via
-                                   \`quickdesign auth config set supabase_anon_key <key>\`.
+  QUICKDESIGN_TOKEN                Use this access token instead of the stored session (CI)
+  QUICKDESIGN_NO_BROWSER=1         Never try to open a browser during login
 `);
 
 registerAuthCommands(program);
