@@ -249,6 +249,15 @@ Your own designs, served by the QuickDesign API. `--select a,b` keeps only those
 | `delete <id>` | Soft-delete (sets `isArchived = true`) |
 | `download <id> -o <path>` | Save the design's image or video to disk |
 
+### `collection`
+
+Your collections and what is in them: your own plus the ones team mates share with the team (the same set the app shows). Items are your designs (`design_id`) and competitor ads saved from Spy Brands (`source: "spy_ad"`, no design id).
+
+| Command | Notes |
+| --- | --- |
+| `list [--limit] [--offset] [--human]` | Your collections with item counts, most recently updated first |
+| `get <id> [--limit] [--offset] [--human]` | One collection plus a page of its items (newest added first) with image/video URLs |
+
 ### `meta` — Deploy to Meta + analytics
 
 | Command | Notes |
