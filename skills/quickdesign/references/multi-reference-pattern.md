@@ -73,7 +73,7 @@ The product anchors don't dominate the action — Seedance treats them as identi
 
 - [ ] What references did the user actually upload? (re-scan their messages)
 - [ ] Subject identity → 1 reference
-- [ ] Product / prop → as many angles as the user provided (typically 1-3) — and the total fits the model's cap (Seedance 2.5: 4 images; Sunburst: 10)
+- [ ] Product / prop → as many angles as the user provided — and the total fits the model's cap (`maxReferenceImages` in `quickdesign video models` / `image models`; Sunburst: 10)
 - [ ] Are all references referenced by `@ImageN` label in the prompt?
 - [ ] Is the prose describing things the references already show? (cut and let the references do the work)
 - [ ] Is the prompt edit-style (`Edit @Image1: ...`) rather than compose-style (`Compose a frame...`)? Compose triggers regen and loses avatar authenticity.

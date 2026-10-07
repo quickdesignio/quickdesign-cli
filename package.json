@@ -1,6 +1,6 @@
 {
   "name": "@quickdesign/cli",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "QuickDesign CLI — image + video generation (Seedance 2.5, GPT Image 2.5, Nano Banana, Flux 3, Kling, UGC), Smart Ad Creator (incl. Advantage+), Spy Brands ad intelligence, Brand DNA extraction, and designs CRUD — from your terminal or a Claude Code agent.",
   "keywords": [
     "quickdesign",
