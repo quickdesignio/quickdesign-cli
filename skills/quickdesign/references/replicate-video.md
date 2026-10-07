@@ -7,7 +7,7 @@ Seedance 2.5 renders it with a new voiceover. The reference video is analysed on
 
 ## Inputs
 - `--video <url|path>` — the reference ad (≤200 MB; up to 30 s is re-created).
-- `--product <url|path>` — 1–3 product photos (repeatable).
+- `--product <url|path>` — product photos (repeatable, at least 1). Pass every clean angle the user has: up to the video model's reference-image limit (`maxReferenceImages` of `seedance-2.5` in `quickdesign video models`) minus one for `--model-image` and one for the brand-kit logo. Too many is refused before any charge, and the error names the limit.
 - `--model-image <url|path>` — optional person to cast; without it a new person unlike the original actor is generated.
 - `--brand-kit <uuid>` — optional; its logo replaces the reference logo, name/offer/voice steer the script. Always pass the user's kit when they have one.
 - `--notes "<text>"` — optional, ≤500 characters: the user's own facts about the product (what it is, material, how it is worn or used, what to stress). Pass it when the user describes their product or a must-have; it steers the product brief and the script, never the swaps, environment or timing. Don't invent notes for the user.
