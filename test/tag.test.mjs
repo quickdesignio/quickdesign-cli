@@ -206,3 +206,123 @@ test('tag add: a server 400 invalid is exit 2 with the server message', async ()
   assert.match(stderr, /designIds must hold 1 to 50 ids/);
 });
 
+
+/** A fake BFF that serves the tag list on GET and hands other calls to `rest`. */
+const withTagList = (rest) => (call) =>
+  call.method === 'GET' && call.path === '/api/design-tags' ? { json: { tags: TAGS } } : rest(call);
+
+test('tag rename finds the tag by name in any case and patches name and color', async () => {
+  const renamed = { id: WINNER.id, name: 'kazanan', color: 'teal' };
+  bff = await fakeBff(withTagList(() => ({ json: { tag: renamed } })));
+  const { code, stdout } = await runCli(['tag', 'rename', 'WINNER', 'kazanan', '--color', 'Teal']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), { tag: renamed });
+  assert.equal(bff.calls.length, 2);
+  assert.equal(bff.calls[1].method, 'PATCH');
+  assert.equal(bff.calls[1].path, `/api/design-tags/${WINNER.id}`);
+  assert.deepEqual(bff.calls[1].body, { name: 'kazanan', color: 'teal' });
+});
+
+test('tag rename with only --color changes just the color; a tag id works too', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: { tag: { ...REVIZE, color: 'orange' } } })));
+  const { code } = await runCli(['tag', 'rename', REVIZE.id, '--color', 'orange']);
+  assert.equal(code, 0);
+  assert.deepEqual(bff.calls[1].body, { color: 'orange' });
+});
+
+test('tag rename --human shows old → new', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: { tag: { id: WINNER.id, name: 'kazanan', color: 'green' } } })));
+  const { stdout } = await runCli(['tag', 'rename', 'winner', 'kazanan', '--human']);
+  assert.match(plain(stdout), /● winner → kazanan/);
+});
+
+test('tag rename checks its input before calling the BFF', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: {} })));
+  const nothing = await runCli(['tag', 'rename', 'winner']);
+  assert.equal(nothing.code, 2);
+  assert.match(nothing.stderr, /new name, --color, or both/);
+  const pink = await runCli(['tag', 'rename', 'winner', '--color', 'pink']);
+  assert.equal(pink.code, 2);
+  assert.match(pink.stderr, /Color must be one of green, yellow, orange, red, purple, blue, teal, gray/);
+  const long = await runCli(['tag', 'rename', 'winner', 'y'.repeat(33)]);
+  assert.equal(long.code, 2);
+  assert.equal(bff.calls.length, 0);
+});
+
+test('tag rename of an unknown tag is exit 2 and patches nothing', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: {} })));
+  const { code, stderr } = await runCli(['tag', 'rename', 'nope', 'yes']);
+  assert.equal(code, 2);
+  assert.match(stderr, /No tag named "nope"/);
+  assert.equal(bff.calls.length, 1);
+  assert.ok(bff.calls.every((c) => c.method === 'GET'));
+});
+
+test('tag rename to a name the team already uses (409) is exit 2 with the server message', async () => {
+  bff = await fakeBff(withTagList(() => ({ status: 409, json: { success: false, error: 'A tag named "revize" already exists', code: 'tag_name_taken' } })));
+  const { code, stderr } = await runCli(['tag', 'rename', 'winner', 'revize']);
+  assert.equal(code, 2);
+  assert.match(stderr, /already exists/);
+});
+
+test('tag rename of a tag a teammate just deleted (404 not_found) is exit 2', async () => {
+  bff = await fakeBff(withTagList(() => ({ status: 404, json: { success: false, error: 'Tag not found', code: 'not_found' } })));
+  const { code, stderr } = await runCli(['tag', 'rename', 'winner', 'kazanan']);
+  assert.equal(code, 2);
+  assert.match(stderr, /Tag not found/);
+});
+
+test('tag delete without --yes off a TTY refuses before any call', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: { removed_from: 9 } })));
+  const { code, stderr } = await runCli(['tag', 'delete', 'revize']);
+  assert.equal(code, 1);
+  assert.match(stderr, /Refusing to delete a tag non-interactively without --yes/);
+  assert.equal(bff.calls.length, 0);
+});
+
+test('tag delete --yes deletes the tag by name and prints what came off', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: { removed_from: 9 } })));
+  const { code, stdout } = await runCli(['tag', 'delete', 'Revize', '--yes']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), { id: REVIZE.id, name: 'revize', removed_from: 9 });
+  assert.equal(bff.calls[1].method, 'DELETE');
+  assert.equal(bff.calls[1].path, `/api/design-tags/${REVIZE.id}`);
+});
+
+test('tag delete --yes --human says how many designs it came off', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: { removed_from: 1 } })));
+  const { stdout } = await runCli(['tag', 'delete', 'Yüzük', '--yes', '--human']);
+  assert.match(plain(stdout), /Deleted Yüzük \(removed from 1 design\)/);
+});
+
+test('tag delete of an unknown tag is exit 2; one a teammate already deleted is exit 2 too', async () => {
+  bff = await fakeBff(withTagList(() => ({ status: 404, json: { success: false, error: 'Tag not found', code: 'not_found' } })));
+  const unknown = await runCli(['tag', 'delete', 'nope', '--yes']);
+  assert.equal(unknown.code, 2);
+  assert.match(unknown.stderr, /No tag named "nope"/);
+  const gone = await runCli(['tag', 'delete', 'winner', '--yes']);
+  assert.equal(gone.code, 2);
+  assert.match(gone.stderr, /Tag not found/);
+});
+
+test('tag rename with a comma in the new name is exit 2 and patches nothing', async () => {
+  bff = await fakeBff(withTagList(() => ({ json: {} })));
+  const { code, stderr } = await runCli(['tag', 'rename', 'winner', 'a,b']);
+  assert.equal(code, 2);
+  assert.match(stderr, /Tag name must not contain a comma/);
+  assert.equal(bff.calls.length, 0);
+  assert.ok(bff.calls.every((c) => c.method !== 'PATCH'));
+});
+
+test('tag rename of a tag to its own name in another case still patches', async () => {
+  const renamed = { id: WINNER.id, name: 'Winner', color: 'green' };
+  bff = await fakeBff(withTagList(() => ({ json: { tag: renamed } })));
+  const { code, stdout } = await runCli(['tag', 'rename', 'winner', 'Winner']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), { tag: renamed });
+  assert.equal(bff.calls.length, 2);
+  assert.equal(bff.calls[1].method, 'PATCH');
+  assert.equal(bff.calls[1].path, `/api/design-tags/${WINNER.id}`);
+  assert.deepEqual(bff.calls[1].body, { name: 'Winner' });
+});
+

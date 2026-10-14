@@ -9,17 +9,23 @@
 import { Command } from 'commander';
 import kleur from 'kleur';
 import { request } from '../client.js';
-import { emitJson, fail, note } from '../utils/output.js';
+import { confirm, emitJson, fail, note } from '../utils/output.js';
 import {
   type ApplyTagsResult,
+  type DesignTag,
+  type TagColor,
   MAX_APPLY_DESIGNS,
   MAX_TAGS_PER_DESIGN,
+  TAG_COLORS,
   collect,
   dot,
   failTagRequest,
   fetchTags,
   parseDesignIds,
   plural,
+  resolveTag,
+  tagColor,
+  tagName,
   uniqueNames,
   unwrap,
 } from '../utils/design-tags.js';
@@ -88,6 +94,22 @@ async function runApply(designArgs: string[], opts: ApplyOpts, mode: 'add' | 're
   }
 }
 
+async function patchTag(id: string, patch: { name?: string; color?: TagColor }): Promise<DesignTag> {
+  try {
+    return unwrap<{ tag: DesignTag }>(await request<unknown>(`/api/design-tags/${id}`, { method: 'PATCH', body: patch })).tag;
+  } catch (err) {
+    failTagRequest(err);
+  }
+}
+
+async function deleteTag(id: string): Promise<number> {
+  try {
+    return unwrap<{ removed_from: number }>(await request<unknown>(`/api/design-tags/${id}`, { method: 'DELETE' })).removed_from;
+  } catch (err) {
+    failTagRequest(err);
+  }
+}
+
 export function registerTagCommands(program: Command): void {
   const tag = program
     .command('tag')
@@ -134,5 +156,59 @@ export function registerTagCommands(program: Command): void {
     .option('--human', 'Pretty-print')
     .action(async (designArgs: string[], opts: ApplyOpts) => {
       try { await runApply(designArgs, opts, 'remove'); } catch (err) { fail(err); }
+    });
+
+  tag
+    .command('rename')
+    .description('Rename a tag and/or change its color, for your whole team')
+    .argument('<tag>', 'Tag name (any case) or id, from `tag list`')
+    .argument('[new-name]', 'New name')
+    .option('--color <color>', `New color: ${TAG_COLORS.join(' | ')}`)
+    .option('--human', 'Pretty-print')
+    .action(async (ref: string, newName: string | undefined, opts: { color?: string; human?: boolean }) => {
+      try {
+        const patch: { name?: string; color?: TagColor } = {};
+        if (newName !== undefined) patch.name = tagName(newName);
+        if (opts.color !== undefined) patch.color = tagColor(opts.color);
+        if (patch.name === undefined && patch.color === undefined) fail('Give a new name, --color, or both', 2);
+        const current = await resolveTag(ref);
+        const updated = await patchTag(current.id, patch);
+        if (opts.human) {
+          process.stdout.write(`${dot(updated.color)} ${current.name} → ${updated.name}\n`);
+          return;
+        }
+        emitJson({ tag: updated });
+      } catch (err) { fail(err); }
+    });
+
+  tag
+    .command('delete')
+    .description('Delete a tag for your whole team — it comes off every design that carries it')
+    .argument('<tag>', 'Tag name (any case) or id, from `tag list`')
+    .option('--yes', 'Skip the confirmation prompt (required when not on a TTY)', false)
+    .option('--human', 'Pretty-print')
+    .action(async (ref: string, opts: { yes?: boolean; human?: boolean }) => {
+      try {
+        // Nobody can answer a prompt from a script or an agent: refuse before touching anything.
+        if (!opts.yes && !process.stdin.isTTY) {
+          fail('Refusing to delete a tag non-interactively without --yes (it comes off every design that carries it).');
+        }
+        const target = await resolveTag(ref);
+        if (!opts.yes) {
+          const ok = await confirm(
+            `Delete tag "${target.name}"? It comes off ${plural(target.count, 'design')} for your whole team. [y/N] `,
+          );
+          if (!ok) {
+            note('Aborted — tag left unchanged.');
+            return;
+          }
+        }
+        const removedFrom = await deleteTag(target.id);
+        if (opts.human) {
+          process.stdout.write(`Deleted ${target.name} (removed from ${plural(removedFrom, 'design')})\n`);
+          return;
+        }
+        emitJson({ id: target.id, name: target.name, removed_from: removedFrom });
+      } catch (err) { fail(err); }
     });
 }
