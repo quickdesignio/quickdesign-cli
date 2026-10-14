@@ -27,7 +27,7 @@ If the reference image OR the user's brief makes the gender unambiguous ("woman 
 
 **Discrete values only:** `5, 8, 10, 12, 15, 20, 25, 30` seconds. Lower bound is 5, upper bound is **30 — one segment can hold a whole ≤30s ad.** There is no 6/7/9/11/13s etc.: compute the tight fit, then round UP to the next legal value.
 
-(Fallback `seedance-2.0-r2v` accepts every integer 4–15 plus `"auto"`, with a 15s cap per segment — if you're on the fallback, use the tight integer and split above 15s. Seedance 1.x legacy only accepts 5 or 10 — don't use it.)
+(`seedance-2.0-r2v`, used only when the user asks for it, accepts every integer 4–15 plus `"auto"`, with a 15s cap per segment — if you're on it, use the tight integer and split above 15s. Seedance 1.x legacy only accepts 5 or 10 — don't use it.)
 
 ## Cost is linear per second (Seedance 2.5)
 

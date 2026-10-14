@@ -25,15 +25,17 @@ Do NOT use for: pure text generation, code edits, search — those have their ow
 
 These apply to every generation. Breaking any of them produces visible defects.
 
-0. **Default models: video = `seedance-2.5`, image edit = `gpt-image-2-5-sunburst-i2i`. ALWAYS pass `--model` explicitly.** The CLI's built-in fallbacks are older models: `--provider seedance` without `--model` silently runs Seedance 2.0, and `image generate` without `--model` runs `nano-banana-2`.
+0. **Default models: video = the latest Seedance (`seedance-2.5` today), image edit = `gpt-image-2-5-sunburst-i2i`. ALWAYS pass `--model` explicitly.** The CLI's built-in fallbacks are older models: `--provider seedance` without `--model` silently runs Seedance 2.0, and `image generate` without `--model` runs `nano-banana-2`.
 
-   - **Video**: `quickdesign video generate --provider seedance --model seedance-2.5 --reference-image …` for ANY UGC / talking-avatar / promo / explainer / multi-scene work, regardless of duration. One 2.5 segment holds up to **30s** (durations 5/8/10/12/15/20/25/30), up to 4 reference images, 3 reference videos and 3 reference audios. Default to **720p** (28 cr/s). 1080p costs 2.5× as much and 4K isn't available. Fall back to `seedance-2.0-r2v` only when the shot needs **more than 4 reference images**, **native 4K**, the **lowest cost per second**, or the user asks for it. See `models/seedance-2.5.md`.
+   - **Video — one default, every job**: `quickdesign video generate --provider seedance --model seedance-2.5 …` for EVERY video job: UGC / talking-avatar / promo / explainer / multi-scene, b-roll and loops, cinematic single shots, pure text-to-video, restyles, and **fixing or redoing a shot inside an existing video** (`references/fix-a-shot.md`). One 2.5 segment holds up to **30s** (durations 5/8/10/12/15/20/25/30), 3 reference videos and 3 reference audios; the reference-image cap is the registry's `maxReferenceImages` (check `quickdesign video models`). Default to **720p** (28 cr/s). 1080p costs 2.5× as much and 4K isn't available. See `models/seedance-2.5.md`.
+   - **"Latest" comes from the registry.** Before a video job, `quickdesign video models` shows what is active. If a newer Seedance generation than `seedance-2.5` is active (e.g. `seedance-3`), that one is the default: use it, and tell the user the cards look stale.
+   - **No silent model switches.** Never move a video job to another model (`kling-*` including `kling-o1-edit`, `gemini-omni-video`, `flux-3-*`, `seedance-2.0-*`) because it looks cheaper, faster or better suited. Use another model only when the user names it. When the default truly can't do what was asked (native 4K, more reference images than the registry allows), say so and ask with `AskUserQuestion` before switching. The model cards for the other models describe what they do so you can answer the user's questions about them, not as triggers to switch.
    - **Image edit**: `quickdesign image generate --model gpt-image-2-5-sunburst-i2i --reference-image …` (1–10 refs, 1K/2K/4K). Exceptions: **4:5 / 5:4 deliverables** go to `nano-banana-2` (Sunburst silently clamps them to 3:4 / 4:3), and **no reference at all** goes to `gpt-image-2-t2i` (the i2i model 400s). See `models/gpt-image-2-5-sunburst-i2i.md`.
-   - **Sora 2 is retired** (2026-09-23), so `--provider sora2` no longer works. If the user asks for Sora, say so and offer Seedance 2.5 (spoken / UGC) or Flux 3 (cinematic single shot, text-to-video). See `models/flux-3.md`.
+   - **Sora 2 is retired** (2026-09-23), so `--provider sora2` no longer works. If the user asks for Sora, say so and use Seedance 2.5; mention Flux 3 (`models/flux-3.md`) only as an option the user can pick.
 
    ⚠️ **Stay in reference mode; don't drift to i2v.** Animating a single image still means one `--reference-image` on Seedance 2.5, not `--image` and not `seedance-2.0-i2v`. The reasoning chain *"user wants to animate static images → image-to-video → i2v"* is the silent regression this rule exists to prevent. Reference mode keeps `@Image1` grammar, multi-ref and `--reference-audio`. On 2.5, `--image` (first-frame mode) and `--reference-*` are mutually exclusive.
 
-   ⚠️ **Prompt-only Seedance 2.5 (no image, no reference) needs CLI ≥ 0.11.0.** Older CLIs route it to the legacy Seedance 1.0 text-to-video model but bill at 2.5 rates. Check `quickdesign --version` first. On an older CLI, give 2.5 at least one reference or use `flux-3-t2v` for pure text-to-video.
+   ⚠️ **Prompt-only Seedance 2.5 (no image, no reference) needs CLI ≥ 0.11.0.** Older CLIs route it to the legacy Seedance 1.0 text-to-video model but bill at 2.5 rates. Check `quickdesign --version` first. On an older CLI, give 2.5 at least one reference or ask the user to update the CLI (`npm i -g @quickdesign/cli`).
 
 1. **Use `@Image1` / `@Audio1` / `@Video1` reference labels in prompts, and pass EVERY relevant photo as a separate reference.** Both the image-edit models (`gpt-image-2-5-sunburst-i2i` up to 10, Nano Banana) and Seedance 2.5 (video, up to 4) accept multiple `--reference-image` flags. If the user uploaded a product from two angles, pass both — describing the second one in prose is a regression. Don't re-describe the person, wardrobe, or product in words; that competes with the reference image and causes drift.
 
@@ -116,7 +118,7 @@ These apply to every generation. Breaking any of them produces visible defects.
     - **Avatar / creator image** — if user provided one, pass it as a separate `--reference-image` and label `@Image2`. If user didn't provide one, **call `AskUserQuestion`** before generating: *Upload a creator headshot / Pick from QuickDesign avatar library (5,000+ portraits) / Proceed with prose-described creator (synthetic-look risk).* Recommend "Pick from library" if the user is brief-only.
     - **Scene / location image** — if the user is filming a "kitchen scene", "bathroom mirror selfie", "office desk POV", etc., ask whether they have a reference photo of the actual room. Pass as `@Image3` if supplied.
 
-    The Seedance 2.5 call should look like (max 4 reference images; merge extra product angles into one reference edit, or use `seedance-2.0-r2v` for up to 9):
+    The Seedance 2.5 call should look like (stay within the registry's `maxReferenceImages`; if the shot needs more anchors, merge extra product angles into one reference edit):
     ```bash
     quickdesign video generate --provider seedance --model seedance-2.5 \
       --reference-image product.jpg \
@@ -135,14 +137,15 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Request | Start here |
 |---|---|
 | UGC / talking-avatar / promo / explainer / multi-segment ad | `pipelines/ugc-video.md` → `models/seedance-2.5.md` |
-| Shot needs >4 reference images, native 4K, or lowest cost/second | `models/seedance-2.0-r2v.md` |
+| Fix / redo one shot inside an existing video (extra or missing person, wrong product, identity drift) | `references/fix-a-shot.md` → regenerate only that shot on `seedance-2.5` with each person as a reference image, then splice it back |
+| User asks for Seedance 2.0, or needs native 4K (ask first — rule #0) | `models/seedance-2.0-r2v.md` |
 | Image edit (angle, state, multi-product composition) | `models/gpt-image-2-5-sunburst-i2i.md` → `references/multi-reference-pattern.md` |
 | 4:5 / 5:4 image, cheap drafts, text-to-image, "Banana Pro" | `models/nano-banana-2.md` (covers Nano Banana 2 / Pro / Lite) |
-| Cinematic single shot, pure text-to-video, "use Sora" | `models/flux-3.md` (Sora 2 is retired) |
-| Short product clip with synced sound effects, video-to-video restyle | `models/gemini-omni-video.md` |
+| Cinematic single shot, pure text-to-video, "use Sora" | `models/seedance-2.5.md` (Sora 2 is retired; `models/flux-3.md` only when the user names Flux) |
+| Short product clip with synced sound effects, video-to-video restyle | `models/seedance-2.5.md` (`models/gemini-omni-video.md` only when the user names Gemini Omni) |
 | Re-create a competitor/reference video ad with your product | `references/replicate-video.md` → `quickdesign video replicate` (confirm the cost first; pass `--brand-kit` when the user has one) |
 | Video ad straight from a product / landing page URL | `references/url-to-video.md` → `quickdesign video from-url` (confirm the cost first; pass `--brand-kit` when the user has one) |
-| Budget loop / non-spoken b-roll | `models/kling-3-pro.md` |
+| Loop / non-spoken b-roll | `models/seedance-2.5.md` (`models/kling-3-pro.md` only when the user names Kling) |
 | Final video too low-res | `models/topaz-video-upscale.md` (run after concat) |
 | Add captions to existing video | `references/auto-subtitle.md` |
 | Brand not in Spy Brands library / 0 search results | `references/spybrands-add-on-miss.md` |
@@ -177,7 +180,7 @@ quickdesign cost --category video
 quickdesign cost <slug> -d <duration> -r <resolution>   # exact compute for one model + params
 ```
 
-When a new model lands that's better-fit than the current default, drop a new file in `models/<slug>.md` (copy the format from any existing card) and update the cardinal rule #0 / decision tree if the model becomes the new universal default.
+When a newer Seedance generation lands in the registry, it is the video default from that moment (cardinal rule #0): drop a card in `models/<slug>.md` (copy the format from any existing card) and update rule #0 and the decision tree. A new model from another family is an option to mention, not a new default.
 
 ## Quick start — common commands
 
@@ -224,9 +227,9 @@ quickdesign video generate --provider seedance --model seedance-2.5 \
 printf "file 'seg1.mp4'\nfile 'seg2.mp4'\n" > /tmp/concat.txt
 ffmpeg -y -f concat -safe 0 -i /tmp/concat.txt -c copy final.mp4
 
-# Pure text-to-video / cinematic single shot (Sora 2 replacement)
-quickdesign video generate --provider seedance --model flux-3-t2v \
-  --duration 8 --aspect-ratio 16:9 --resolution 1080p -p '...' -o shot.mp4 --wait
+# Pure text-to-video / cinematic single shot — still Seedance 2.5 (prompt-only needs CLI >= 0.11.0)
+quickdesign video generate --provider seedance --model seedance-2.5 \
+  --duration 8 --aspect-ratio 16:9 --resolution 720p -p '...' -o shot.mp4 --wait
 
 # Replicate a reference ad with your product (Gemini-directed Seedance 2.5)
 quickdesign video replicate --video ./ref.mp4 --product ./product.jpg \
@@ -277,18 +280,19 @@ references/                        ← model-agnostic concepts (read for princip
    narrative-arc.md                ← per-segment reference decision tree
    script-and-duration.md          ← word count → segment math, gender-neutral defaults
    first-frame-not-camera-motion.md ← why "static hold" / "slowly zooms" cause defects
+   fix-a-shot.md                   ← redo one bad shot of an existing video on Seedance 2.5 and splice it back
    brand-and-moderation.md         ← brand-kit conventions, content moderation
 pipelines/                         ← multi-step workflows (model-agnostic where possible)
    ugc-video.md                    ← canonical multi-segment talking-avatar method
 models/                            ← per-model reference cards (gotchas + prompt skeletons)
-   seedance-2.5.md                 ← DEFAULT video for UGC / promo / talking-avatar (≤30s per segment)
-   seedance-2.0-r2v.md             ← fallback: >4 refs, native 4K, lowest cost/second
+   seedance-2.5.md                 ← DEFAULT for every video job (≤30s per segment)
+   seedance-2.0-r2v.md             ← only on request: Seedance 2.0, native 4K
    seedance-2.0-i2v.md             ← niche; explicit user opt-in only
    gpt-image-2-5-sunburst-i2i.md   ← DEFAULT image edit + multi-ref product composition
    nano-banana-2.md                ← Nano Banana 2 / Pro / Lite: 4:5, budget, text-to-image
-   flux-3.md                       ← cinematic single shot + pure text-to-video (Sora 2 replacement)
-   gemini-omni-video.md            ← cheap image/video→video with synced sound effects
-   kling-3-pro.md                  ← Kling family, budget alternative for non-spoken b-roll
+   flux-3.md                       ← only on request: Flux 3 text/image-to-video
+   gemini-omni-video.md            ← only on request: Gemini Omni image/video→video
+   kling-3-pro.md                  ← only on request: Kling family (incl. O1 Edit)
    topaz-video-upscale.md          ← post-pipeline upscale
 ```
 

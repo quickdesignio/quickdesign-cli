@@ -3,15 +3,12 @@ slug: seedance-2.0-i2v
 category: video_generate
 provider: fal | kie
 status: niche
-description: Seedance 2.0 Image-to-Video. Niche model, almost never the right pick for UGC. The default is `seedance-2.5` (reference mode), with `seedance-2.0-r2v` as fallback. This card exists so the agent recognizes when (rarely) i2v is the right call and can document why.
+description: Seedance 2.0 Image-to-Video. Niche model, almost never the right pick for UGC. The default is `seedance-2.5` (reference mode) for every video job. This card exists so the agent recognizes when (rarely) i2v is the right call and can document why.
 ---
 
 ## When to use
 
-**Almost never.** `seedance-2.5` is the default for everything UGC, and `seedance-2.0-r2v` is its fallback. Use i2v ONLY when:
-
-- The user has named `seedance-2.0-i2v` explicitly ("use i2v")
-- Both `seedance-2.5` and `seedance-2.0-r2v` are unavailable / inactive in the registry (check `quickdesign video models`)
+**Almost never.** `seedance-2.5` is the default for every video job (`../SKILL.md` cardinal rule #0). Use i2v ONLY when the user has named `seedance-2.0-i2v` explicitly ("use i2v"). If no Seedance reference model is active in the registry (`quickdesign video models`), ask the user which model to use instead of picking i2v.
 
 There is **no scenario** where i2v is "simpler" enough to justify silently picking it. Seedance 2.5 (and 2.0 R2V) accept a single `--reference-image` cleanly. From the user's side it works exactly like i2v's `--image`, and it keeps every primitive the skill depends on:
 

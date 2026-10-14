@@ -141,7 +141,7 @@ The UI auto-adds an "Other" option for free-text input — never include it your
 
 ### Gate-by-gate canonical patterns
 
-**Model picker** (when more than one model in the registry is viable for the request — see `../pipelines/ugc-video.md#model-picker`):
+**Model picker** (only when the default can't do what was asked, e.g. native 4K, or the user asks which model to use; otherwise just use the latest Seedance — `../SKILL.md` rule #0):
 
 ```
 question: "Which video model should I use for the 3 talking-head segments?"
@@ -155,7 +155,7 @@ options:
      description: "Cheapest path for non-spoken b-roll. 3/5/10/15s, single --image, no reference grammar or voice lock. ~95cr/10s."
 ```
 
-Sora 2 is retired (2026-09-23) — never offer it. If the user asks for "cinematic single shot" or names Sora, offer Flux 3 (`../models/flux-3.md`) instead.
+Sora 2 is retired (2026-09-23) — never offer it. If the user names Sora, say so and use Seedance 2.5; mention Flux 3 (`../models/flux-3.md`) as an option they can pick.
 
 **Transition style** (when the user hasn't named one):
 

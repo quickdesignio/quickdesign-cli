@@ -24,29 +24,30 @@ When a new model that supports the same primitives lands, update this picker to 
 quickdesign video models | jq '.data[] | select(.slug | startswith("seedance")) | {slug, durations, resolutions, maxReferenceImages}'
 ```
 
-If `seedance-2.5` is no longer in the list, fall back to `seedance-2.0-r2v` (see `../models/seedance-2.0-r2v.md` — 15s cap per segment, so re-run the segment math) or pick the closest replacement; the rest of this pipeline still applies.
+If a newer Seedance generation than `seedance-2.5` is in the list, it is the default (cardinal rule #0): use it and re-check its durations. If `seedance-2.5` is gone and nothing newer replaced it, ask the user which model to use before generating; the rest of this pipeline still applies.
 
 **Length is NOT a reason to switch models or modes.** A short single-shot script does not justify dropping to `seedance-2.0-i2v` or to 2.5's first-frame mode (`--image`). Passing one `--reference-image` is functionally identical from the user's perspective, and it preserves every primitive this pipeline depends on (`@Image1`, `--reference-audio`, multi-`--reference-image`). `--image` and `--reference-*` are mutually exclusive on 2.5 — never combine them.
 
-**When to deviate from the default:**
+**Other models — only when the user names them** (cardinal rule #0). Never switch because a model looks cheaper or better suited; if the default can't do what was asked, say so and ask first.
 
-| Situation | Use instead | Why |
+| Situation | Model | Notes |
 |---|---|---|
-| Needs >4 reference images, a native 4K master, or budget-tight 1080p | `seedance-2.0-r2v` | Up to 9 image refs, 4k, 1080p at 25 cr/s — but 15s cap per segment → more segments + continuity steps |
-| User asks for Sora 2 | — | **Retired 2026-09-23** (`sora2-*` inactive). Say so; offer Seedance 2.5 (spoken UGC) or Flux 3 (cinematic single shot) |
-| Cinematic single shot / pure text-to-video, no reference grammar needed | `flux-3-t2v` / `flux-3-i2v` | 5–20s, native audio; no `@Image` labels, no `--reference-audio` continuity |
-| Cheap image→video or video→video with synced object sounds, 16:9 / 9:16 only | `gemini-omni-video` | 4/6/8/10s, ~29–57cr; max 2 image refs |
+| User asks for Seedance 2.0, or for a native 4K master (ask first) | `seedance-2.0-r2v` | 4k, up to 9 image refs — but 15s cap per segment → more segments + continuity steps |
+| User asks for Sora 2 | — | **Retired 2026-09-23** (`sora2-*` inactive). Say so and use Seedance 2.5; Flux 3 only if the user picks it |
+| User names Flux 3 | `flux-3-t2v` / `flux-3-i2v` | 5–20s, native audio; no `@Image` labels, no `--reference-audio` continuity |
+| User names Gemini Omni | `gemini-omni-video` | 4/6/8/10s, ~29–57cr; max 2 image refs |
 | User explicitly opts into i2v | `seedance-2.0-i2v` | Only override the default on explicit user opt-in — never silently |
-| Budget-tight, simple loop, no voice / no product fidelity needed | `kling-3-standard` | Cheaper but no `@Image1` refs, no `--reference-audio` — single segments only |
+| User names Kling | `kling-3-standard` / `kling-3-pro` | Cheaper but no `@Image1` refs, no `--reference-audio` — single segments only |
 | Already-rendered video needs new caption | `fal-auto-subtitle` | Post-processing only, see `../references/auto-subtitle.md` |
 | Generated video is too low-res | `topaz-video-upscale` / `bytedance-video-upscale` | Run after final concat — see `../models/topaz-video-upscale.md` |
 
 For full per-model gotchas / prompt skeletons / failure modes, jump to the model card:
 - `../models/seedance-2.5.md` — the default; see this for prompt syntax
-- `../models/seedance-2.0-r2v.md` — fallback for >4 refs, 4K, or budget 1080p
-- `../models/flux-3.md` — cinematic single shot / text-to-video (the Sora 2 replacement)
-- `../models/gemini-omni-video.md` — cheap i2v / v2v with synced sound
-- `../models/kling-3-pro.md` — budget alternative for non-spoken b-roll
+- `../models/seedance-2.0-r2v.md` — only on request (Seedance 2.0, native 4K)
+- `../models/flux-3.md` — only on request
+- `../models/gemini-omni-video.md` — only on request
+- `../models/kling-3-pro.md` — only on request
+- `../references/fix-a-shot.md` — redo one bad shot of a finished video on Seedance 2.5 and splice it back
 - `../models/seedance-2.0-i2v.md` — almost never the right pick (here for completeness)
 
 The rest of this doc (segment planning, voice continuity, concat) is model-agnostic. The Seedance-specific bits live in `../models/seedance-2.5.md` so swapping models in the future is a localized edit.
@@ -185,8 +186,8 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
 - Don't propose any TTS + voice-clone + lipsync chain — retired in this skill. Use `--reference-audio` instead.
 - **Don't omit `--model seedance-2.5`.** The CLI's implicit default is `seedance-2.0-r2v` — you'd silently get the old model and its 15s cap.
 - **Don't combine `--image` with `--reference-*` on 2.5** — first-frame mode and reference mode are mutually exclusive. For UGC always use reference mode.
-- **Don't run 2.5 with no image and no reference on CLI ≤ 0.10.0.** There, prompt-only 2.5 is routed to a legacy text-to-video model while billed at 2.5 rates (fixed in 0.11.0). On an older CLI, give it at least one `--reference-image`, or use `flux-3-t2v` for pure text-to-video.
-- **Don't pass more than 4 `--reference-image` to 2.5.** If the shot truly needs more anchors, switch to `seedance-2.0-r2v` (up to 9).
+- **Don't run 2.5 with no image and no reference on CLI ≤ 0.10.0.** There, prompt-only 2.5 is routed to a legacy text-to-video model while billed at 2.5 rates (fixed in 0.11.0). On an older CLI, give it at least one `--reference-image`, or ask the user to update the CLI.
+- **Don't pass more `--reference-image` than the registry's `maxReferenceImages` for 2.5.** If the shot truly needs more anchors, merge them into one reference edit, or ask the user about `seedance-2.0-r2v`.
 - **Don't skip the `--reference-audio` step on multi-segment videos.** It's not optional — Seedance picks a different voice per call without it; cuts sound like 2-3 different people.
 - Don't cram more than ~2 words per second of duration into a segment (≈60 words max in a 30s segment) — pacing collapses to chipmunk speed.
 - Don't change wardrobe / setting / lighting between segments — only the angle / framing / facial expression. Anything else breaks visual continuity.
