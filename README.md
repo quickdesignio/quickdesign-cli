@@ -258,6 +258,7 @@ Your collections and what is in them: your own plus the ones team mates share wi
 | --- | --- |
 | `list [--limit] [--offset] [--human]` | Your collections with item counts, most recently updated first |
 | `get <id> [--limit] [--offset] [--human]` | One collection plus a page of its items (newest added first) with image/video URLs |
+| `add <collection> <design-id...> [--human]` | Add up to 50 designs to a collection: give its id or its exact name. Your own, team mates' and template designs can be added; ones already there are skipped. Prints `added`, `already_in_collection` and `not_found`. Spends no credits |
 
 ### `meta` — Deploy to Meta + analytics
 

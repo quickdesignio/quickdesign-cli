@@ -16,7 +16,7 @@ This skill teaches Claude how to plan and execute AI media generation through th
 - **Replicate a competitor / reference video ad** — re-create it with the user's product → `quickdesign video replicate` (`references/replicate-video.md`)
 - **Video ad from a product page** — "make a video ad from this link" → `quickdesign video from-url` (`references/url-to-video.md`)
 - **Schedule organic Facebook / Instagram posts**: "post this design to our Page tomorrow at 10", "plan next week's Instagram posts", "what's scheduled?" → `quickdesign social` (`references/social-planner.md`)
-- **Your collections**: "what's in my Summer collection?", "use the images from my X collection" → `quickdesign collection list` then `collection get <id>` (items carry `design_id` + image/video URLs)
+- **Your collections**: "what's in my Summer collection?", "use the images from my X collection" → `quickdesign collection list` then `collection get <id>` (items carry `design_id` + image/video URLs). File a result into one with `collection add <id-or-exact-name> <design-id...>` (a finished job's `result_design_id`)
 - **Bulk / batch creative production** — "do this for each of these 5 product photos"
 - **Save a finished file to the library**: "QuickDesign'a design olarak kaydet", "put this edit in my library" → `quickdesign design create <file> --title "…"` (CLI ≥ 0.20.0). Not an upscale just to get a design row: that costs credits and changes the frame rate.
 
@@ -263,6 +263,7 @@ quickdesign design create ./final.mp4 --title "Summer ad v2"     # --asset → l
 # Your collections (own + shared by your team) and what is in them
 quickdesign collection list --human
 quickdesign collection get <collection-uuid> --human   # items: design_id (or spy ad), type, title, URL
+quickdesign collection add "Otta Week 1" 85725 --human # file designs into it (id or exact name; up to 50 ids)
 ```
 
 ## File index
