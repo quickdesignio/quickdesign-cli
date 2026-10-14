@@ -19,7 +19,11 @@ const START_PATH = '/api/replicate-video/generate';
 const STATUS_PATH = '/api/async-seedance-video/status';
 /** The BFF downloads and probes the reference (≤200 MB) before it answers 202. */
 const START_TIMEOUT_MS = 280_000;
-const MAX_PRODUCTS = 3;
+/**
+ * Absolute ceiling (kie's Seedance 2.5 takes 30 reference images). The BFF enforces the model's real
+ * limit — the registry's max_reference_images minus the model photo and the logo — and names it in a 400.
+ */
+const MAX_PRODUCTS = 30;
 /** Mirrors MAX_NOTES_CHARS in the BFF (services/replicateVideo/types.ts). */
 const MAX_NOTES_CHARS = 500;
 const FAILED = ['failed', 'timeout', 'cancelled'];
@@ -56,7 +60,7 @@ export function registerVideoReplicateCommands(video: Command): void {
     )
     .option(
       '--product <url|path>',
-      `Product image (repeatable, 1–${MAX_PRODUCTS}; auto-uploaded)`,
+      `Product image (repeatable; as many as the video model takes beside --model-image and the brand logo, at most ${MAX_PRODUCTS}; a few clean angles work best; auto-uploaded)`,
       (v: string, prev: string[]) => [...prev, v],
       [] as string[],
     )
@@ -74,8 +78,9 @@ export function registerVideoReplicateCommands(video: Command): void {
     .action(async (opts: ReplicateOpts) => {
       try {
         const products = opts.product ?? [];
-        if (products.length < 1 || products.length > MAX_PRODUCTS) {
-          fail(`Pass 1–${MAX_PRODUCTS} --product images (got ${products.length}).`, 2);
+        if (products.length < 1) fail('Pass at least one --product image.', 2);
+        if (products.length > MAX_PRODUCTS) {
+          fail(`Pass at most ${MAX_PRODUCTS} --product images (got ${products.length}).`, 2);
         }
         const notes = opts.notes?.trim();
         if (notes && notes.length > MAX_NOTES_CHARS) {
