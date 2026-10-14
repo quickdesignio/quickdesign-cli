@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { request, ApiError } from '../client.js';
 import { emitJson, fail, note } from '../utils/output.js';
+import { collect, failTagRequest, resolveFilterNames } from '../utils/design-tags.js';
 import { downloadTo } from '../utils/download.js';
 import { looksLikeLocalPath, uploadLocalFile } from '../utils/upload.js';
 
@@ -19,7 +20,10 @@ type DesignRow = Record<string, unknown> & {
   thumbnail_url?: string | null;
 };
 
-interface Envelope<T> { success: boolean; data: T }
+interface Envelope<T> { success: boolean; data: T; unknown_tags?: string[] }
+
+/** The BFF's cap on `tags=` names per request. */
+const MAX_TAG_FILTERS = 10;
 
 /** `--select a,b` keeps only those columns (the server returns a fixed set). */
 function project(rows: DesignRow[], select?: string): Array<Record<string, unknown>> {
@@ -55,6 +59,7 @@ export function registerDesignCommands(program: Command): void {
     .option('--limit <n>', 'Limit (1-200)', (v) => parseInt(v, 10), 50)
     .option('--offset <n>', 'Offset', (v) => parseInt(v, 10), 0)
     .option('--category <id>', 'Filter by category id (numeric)')
+    .option('--tag <name>', "Only designs carrying this team tag (repeatable: all must match; see `tag list`). Not the template library's tags", collect, [] as string[])
     .option('--archived', 'Include archived rows (default: only non-archived)', false)
     .option('--assets-only', 'Only rows with is_asset = true', false)
     .option('--select <cols>', 'Comma-separated columns to keep in the output')
@@ -62,20 +67,39 @@ export function registerDesignCommands(program: Command): void {
       limit?: number;
       offset?: number;
       category?: string;
+      tag?: string[];
       archived?: boolean;
       assetsOnly?: boolean;
       select?: string;
     }) => {
       try {
-        const res = await request<Envelope<DesignRow[]>>('/api/designs', {
-          query: {
-            limit: opts.limit ?? 50,
-            offset: opts.offset ?? 0,
-            category: opts.category,
-            include_archived: opts.archived ? 'true' : undefined,
-            assets_only: opts.assetsOnly ? 'true' : undefined,
-          },
-        });
+        // Resolve the names first: a typo is exit 2 here, not an empty list.
+        const tags = await resolveFilterNames(opts.tag ?? []);
+        if (tags.length > MAX_TAG_FILTERS) fail(`At most ${MAX_TAG_FILTERS} tags per --tag filter, got ${tags.length}`, 2);
+        let res: Envelope<DesignRow[]>;
+        try {
+          res = await request<Envelope<DesignRow[]>>('/api/designs', {
+            query: {
+              limit: opts.limit ?? 50,
+              offset: opts.offset ?? 0,
+              category: opts.category,
+              tags: tags.length > 0 ? tags.join(',') : undefined,
+              include_archived: opts.archived ? 'true' : undefined,
+              assets_only: opts.assetsOnly ? 'true' : undefined,
+            },
+          });
+        } catch (err) {
+          if (tags.length > 0 && err instanceof ApiError && err.status === 503) failTagRequest(err);
+          throw err;
+        }
+        // A tag deleted between the lookup and the list: the server names it and returns nothing.
+        if (Array.isArray(res.unknown_tags) && res.unknown_tags.length > 0) {
+          note(`warning: unknown tag(s) ${res.unknown_tags.map((t) => `"${t}"`).join(', ')} — nothing matches`);
+        }
+        // A BFF from before the filter drops `tags` and returns every design; its rows carry no `tags`.
+        if (tags.length > 0 && res.data.some((row) => !Array.isArray(row.tags))) {
+          fail('This QuickDesign server does not support `design list --tag` yet; it needs a newer BFF.');
+        }
         emitJson(project(res.data, opts.select));
       } catch (err) { fail(err); }
     });

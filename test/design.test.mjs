@@ -25,6 +25,7 @@ test('design list asks the BFF with the CLI filters and prints the rows', async 
   assert.equal(call.path, '/api/designs');
   assert.deepEqual(call.query, { limit: '5', offset: '0', category: '7', include_archived: 'true', assets_only: 'true' });
   assert.equal(call.headers.authorization, 'Bearer access-1');
+  assert.equal(bff.calls.length, 1, 'no tag lookup without --tag');
 });
 
 test('design list --select keeps only those columns', async () => {
@@ -120,4 +121,119 @@ test('design create shows the server\'s reason for a rejected file', async () =>
   const { code, stderr } = await runCli(['design', 'create', UPLOADED]);
   assert.equal(code, 1);
   assert.match(stderr, /The uploaded file was not found/);
+});
+
+const WINNER = { id: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'winner', color: 'green', count: 24, last_used_at: null };
+const YUZUK = { id: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Yüzük', color: 'purple', count: 1, last_used_at: null };
+const TAGGED = { ...ROW, tags: ['winner', 'Yüzük'] };
+
+test('design list --tag resolves the names (any case) and asks for designs that carry all of them', async () => {
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags' ? { json: { tags: [WINNER, YUZUK] } } : { json: { success: true, data: [TAGGED] } },
+  );
+  const { code, stdout } = await runCli(['design', 'list', '--tag', 'WINNER', '--tag', 'yüzük', '--tag', 'Winner']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), [TAGGED]);
+  assert.equal(bff.calls.length, 2);
+  assert.equal(bff.calls[0].path, '/api/design-tags');
+  assert.equal(bff.calls[1].path, '/api/designs');
+  assert.deepEqual(bff.calls[1].query, { limit: '50', offset: '0', tags: 'winner,Yüzük' });
+});
+
+test('design list --tag <id> resolves the id and sends the canonical name', async () => {
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags' ? { json: { tags: [WINNER, YUZUK] } } : { json: { success: true, data: [TAGGED] } },
+  );
+  const { code } = await runCli(['design', 'list', '--tag', YUZUK.id.toUpperCase()]);
+  assert.equal(code, 0);
+  assert.equal(bff.calls.length, 2);
+  assert.equal(bff.calls[0].path, '/api/design-tags');
+  assert.equal(bff.calls[1].path, '/api/designs');
+  assert.equal(bff.calls[1].query.tags, 'Yüzük');
+});
+
+test('design list --tag with a tag the team does not have is exit 2 and lists nothing', async () => {
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags' ? { json: { tags: [WINNER] } } : { json: { success: true, data: [TAGGED] } },
+  );
+  const { code, stderr } = await runCli(['design', 'list', '--tag', 'winner', '--tag', 'nope']);
+  assert.equal(code, 2);
+  assert.match(stderr, /No tag named "nope"/);
+  assert.equal(bff.calls.length, 1);
+  assert.ok(bff.calls.every((c) => c.path === '/api/design-tags'));
+});
+
+test('design list --tag with more than 10 distinct tags is exit 2 without asking for designs', async () => {
+  const many = Array.from({ length: 11 }, (_, i) => ({ ...WINNER, id: `aaaaaaaa-0000-0000-0000-0000000001${String(i).padStart(2, '0')}`, name: `t${i}` }));
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags' ? { json: { tags: many } } : { json: { success: true, data: [] } },
+  );
+  const args = ['design', 'list', ...many.flatMap((t) => ['--tag', t.name])];
+  const { code, stderr } = await runCli(args);
+  assert.equal(code, 2);
+  assert.match(stderr, /At most 10 tags/);
+  assert.equal(bff.calls.length, 1);
+  assert.ok(bff.calls.every((c) => c.path === '/api/design-tags'));
+});
+
+test('design list --tag warns about unknown_tags the server reports and prints an empty list', async () => {
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags'
+      ? { json: { tags: [WINNER] } }
+      : { json: { success: true, data: [], unknown_tags: ['winner'] } },
+  );
+  const { code, stdout, stderr } = await runCli(['design', 'list', '--tag', 'winner']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), []);
+  assert.match(stderr, /unknown tag.*winner/i);
+});
+
+test('design list --tag never prints an unfiltered list from a BFF that ignores the filter', async () => {
+  // Tag routes exist, but /api/designs predates `tags`: it drops the query and returns every design.
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags' ? { json: { tags: [WINNER] } } : { json: { success: true, data: [ROW] } },
+  );
+  const { code, stdout, stderr } = await runCli(['design', 'list', '--tag', 'winner']);
+  assert.equal(code, 1);
+  assert.equal(stdout, '');
+  assert.match(stderr, /does not support `design list --tag` yet; it needs a newer BFF/);
+});
+
+test('design list --tag on a BFF without tags at all says it needs a newer BFF', async () => {
+  bff = await fakeBff(() => ({ status: 404, json: { success: false, error: 'Route GET /api/design-tags not found', message: 'NOT_FOUND' } }));
+  const { code, stderr } = await runCli(['design', 'list', '--tag', 'winner']);
+  assert.equal(code, 1);
+  assert.match(stderr, /does not support tags yet; it needs a newer BFF/);
+});
+
+test('design list --tag says so when the tag tables are not migrated yet', async () => {
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags'
+      ? { json: { tags: [WINNER] } }
+      : { status: 503, json: { success: false, error: 'unavailable', code: 'design_tags_unavailable' } },
+  );
+  const { code, stderr } = await runCli(['design', 'list', '--tag', 'winner']);
+  assert.equal(code, 1);
+  assert.match(stderr, /Tags aren't available on this QuickDesign server yet/);
+});
+
+test('design list --tag with --select still checks the rows before keeping columns', async () => {
+  bff = await fakeBff(({ path }) =>
+    path === '/api/design-tags' ? { json: { tags: [WINNER] } } : { json: { success: true, data: [TAGGED] } },
+  );
+  const { code, stdout } = await runCli(['design', 'list', '--tag', 'winner', '--select', 'id']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), [{ id: 9 }]);
+});
+
+test('design list --tag with an empty or blank value is exit 2 before any request', async () => {
+  for (const v of ['', '  ']) {
+    bff = await fakeBff(() => ({ json: { success: true, data: [] } }));
+    const { code, stderr } = await runCli(['design', 'list', '--tag', v]);
+    assert.equal(code, 2);
+    assert.match(stderr, /Tag name must not be empty/);
+    assert.equal(bff.calls.length, 0);
+    await bff.close();
+  }
+  bff = undefined;
 });

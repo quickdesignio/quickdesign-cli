@@ -17,6 +17,7 @@ import { registerBrandCommands } from './commands/brand.js';
 import { registerAdCreatorCommands } from './commands/ad-creator.js';
 import { registerDesignCommands } from './commands/design.js';
 import { registerCollectionCommands } from './commands/collection.js';
+import { registerTagCommands } from './commands/tag.js';
 import { registerTemplateCommands } from './commands/template.js';
 import { registerMetaCommands } from './commands/meta.js';
 import { registerSocialCommands } from './commands/social.js';
@@ -126,6 +127,8 @@ Examples
   $ quickdesign ad-creator advantage-plus --product-url https://kizik.com/products/bowen --brand-kit <uuid> --wait -o ./ads
   $ quickdesign template list --tag Trending --limit 10 --human
   $ quickdesign design list --limit 10
+  $ quickdesign tag add 85725 85330 --tag winner
+  $ quickdesign design list --tag winner --tag yüzük
   $ quickdesign meta accounts --human
   $ quickdesign meta radar --account act_123 --compute --human
   $ quickdesign meta publish --account act_123 --page 456 --name "Summer Sale" \\
@@ -148,6 +151,7 @@ registerBrandCommands(program);
 registerAdCreatorCommands(program);
 registerDesignCommands(program);
 registerCollectionCommands(program);
+registerTagCommands(program);
 registerTemplateCommands(program);
 registerMetaCommands(program);
 registerSocialCommands(program);
