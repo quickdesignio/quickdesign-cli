@@ -64,3 +64,145 @@ test('a BFF whose tag tables are missing says the migration is pending', async (
   assert.match(stderr, /aren't available on this QuickDesign server yet/);
   assert.match(stderr, /migration/);
 });
+
+const APPLIED = {
+  added: [{ design_id: 85725, tag_id: WINNER.id }, { design_id: 85725, tag_id: YUZUK.id }],
+  removed: [],
+  already: [{ design_id: 85330, tag_id: WINNER.id }],
+  created_tags: [],
+  not_found: { designs: [], tags: [] },
+  limit_reached: [],
+};
+
+test('tag add posts the designs and tag names (missing tags created) and prints the result', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const { code, stdout } = await runCli(['tag', 'add', '85725', '85330', '--tag', 'winner', '--tag', 'Yüzük']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), APPLIED);
+  assert.equal(bff.calls.length, 1);
+  const call = bff.calls[0];
+  assert.equal(call.method, 'POST');
+  assert.equal(call.path, '/api/design-tags/apply');
+  assert.deepEqual(call.body, {
+    designIds: [85725, 85330],
+    add: [{ name: 'winner' }, { name: wire('Yüzük') }],
+    createMissing: true,
+  });
+  assert.equal(call.headers.authorization, 'Bearer access-1');
+});
+
+test('tag add sends a name given twice in different case once, first spelling', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const { code } = await runCli(['tag', 'add', '85725', '--tag', ' Winner ', '--tag', 'winner', '--tag', 'WINNER']);
+  assert.equal(code, 0);
+  assert.deepEqual(bff.calls[0].body.add, [{ name: 'Winner' }]);
+});
+
+test('tag add checks ids and names before calling the BFF', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const noTag = await runCli(['tag', 'add', '85725']);
+  assert.equal(noTag.code, 2);
+  assert.match(noTag.stderr, /at least one --tag/);
+  for (const bad of ['abc', '0', '1.5']) {
+    const r = await runCli(['tag', 'add', bad, '--tag', 'winner']);
+    assert.equal(r.code, 2, bad);
+    assert.match(r.stderr, /design id/i);
+  }
+  const tooMany = Array.from({ length: 51 }, (_, i) => String(i + 1));
+  const over = await runCli(['tag', 'add', ...tooMany, '--tag', 'winner']);
+  assert.equal(over.code, 2);
+  assert.match(over.stderr, /50/);
+  const blank = await runCli(['tag', 'add', '85725', '--tag', '   ']);
+  assert.equal(blank.code, 2);
+  assert.match(blank.stderr, /must not be empty/);
+  const long = await runCli(['tag', 'add', '85725', '--tag', 'x'.repeat(33)]);
+  assert.equal(long.code, 2);
+  assert.match(long.stderr, /at most 32 characters/);
+  assert.equal(bff.calls.length, 0);
+});
+
+test('tag add accepts a 32-character name counted in characters, not bytes', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const name = 'ü'.repeat(32);
+  const { code } = await runCli(['tag', 'add', '85725', '--tag', name]);
+  assert.equal(code, 0);
+  assert.deepEqual(bff.calls[0].body.add, [{ name: wire(name) }]);
+});
+
+test('tag add reports what it could not do on stderr and keeps stdout JSON', async () => {
+  bff = await fakeBff(() => ({
+    json: {
+      ...APPLIED,
+      created_tags: [{ id: 'aaaaaaaa-0000-0000-0000-0000000000ff', name: 'black week', color: 'orange' }],
+      not_found: { designs: [7], tags: [] },
+      limit_reached: [85330],
+    },
+  }));
+  const { code, stdout, stderr } = await runCli(['tag', 'add', '85725', '85330', '7', '--tag', 'black week']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout).not_found.designs, [7]);
+  assert.match(stderr, /designs not found or not yours to tag: 7/);
+  assert.match(stderr, /already have 20 tags, skipped: 85330/);
+  assert.match(stderr, /created tag: black week/);
+});
+
+test('tag add --human prints counts', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const { code, stdout } = await runCli(['tag', 'add', '85725', '85330', '--tag', 'winner', '--human']);
+  assert.equal(code, 0);
+  assert.match(plain(stdout), /Added 2/);
+  assert.match(plain(stdout), /Already there 1/);
+});
+
+test('tag add: a full workspace (422 tag_limit) is exit 2 with the server message', async () => {
+  bff = await fakeBff(() => ({ status: 422, json: { success: false, error: 'Your team already has 200 tags', code: 'tag_limit' } }));
+  const { code, stderr } = await runCli(['tag', 'add', '85725', '--tag', 'one more']);
+  assert.equal(code, 2);
+  assert.match(stderr, /already has 200 tags/);
+});
+
+test('tag remove posts the names to remove and never creates tags', async () => {
+  const removed = { ...APPLIED, added: [], already: [], removed: [{ design_id: 85725, tag_id: REVIZE.id }] };
+  bff = await fakeBff(() => ({ json: removed }));
+  const { code, stdout } = await runCli(['tag', 'remove', '85725', '--tag', 'revize', '--tag', 'gone']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), removed);
+  assert.deepEqual(bff.calls[0].body, { designIds: [85725], remove: [{ name: 'revize' }, { name: 'gone' }] });
+});
+
+test('tag remove warns about tag names it did not find', async () => {
+  bff = await fakeBff(() => ({ json: { ...APPLIED, added: [], already: [], not_found: { designs: [], tags: ['gone'] } } }));
+  const { code, stderr } = await runCli(['tag', 'remove', '85725', '--tag', 'gone']);
+  assert.equal(code, 0);
+  assert.match(stderr, /tags not found: gone/);
+});
+
+test('tag remove --human prints how many came off', async () => {
+  bff = await fakeBff(() => ({ json: { ...APPLIED, added: [], already: [], removed: [{ design_id: 85725, tag_id: REVIZE.id }] } }));
+  const { stdout } = await runCli(['tag', 'remove', '85725', '--tag', 'revize', '--human']);
+  assert.match(plain(stdout), /Removed 1/);
+});
+
+test('tag add rejects a comma in a tag name (exit 2, no request)', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const { code, stderr } = await runCli(['tag', 'add', '1', '--tag', 'a,b']);
+  assert.equal(code, 2);
+  assert.match(stderr, /Tag name must not contain a comma/);
+  assert.equal(bff.calls.length, 0);
+});
+
+test('tag add de-duplicates design ids before the 50 cap', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const repeated = Array.from({ length: 60 }, (_, i) => String((i % 10) + 1));
+  const { code } = await runCli(['tag', 'add', ...repeated, '--tag', 'winner']);
+  assert.equal(code, 0);
+  assert.deepEqual(bff.calls[0].body.designIds, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+});
+
+test('tag add: a server 400 invalid is exit 2 with the server message', async () => {
+  bff = await fakeBff(() => ({ status: 400, json: { success: false, error: 'designIds must hold 1 to 50 ids', code: 'invalid' } }));
+  const { code, stderr } = await runCli(['tag', 'add', '85725', '--tag', 'winner']);
+  assert.equal(code, 2);
+  assert.match(stderr, /designIds must hold 1 to 50 ids/);
+});
+
