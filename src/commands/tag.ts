@@ -26,20 +26,24 @@ import {
   resolveTag,
   tagColor,
   tagName,
-  uniqueNames,
+  uniqueRefs,
+  UnexpectedResponse,
+  type TagRef,
   unwrap,
 } from '../utils/design-tags.js';
 
 interface ApplyBody {
   designIds: number[];
-  add?: Array<{ name: string }>;
-  remove?: Array<{ name: string }>;
+  add?: TagRef[];
+  remove?: TagRef[];
   createMissing?: boolean;
 }
 
 async function applyTags(body: ApplyBody): Promise<ApplyTagsResult> {
   try {
-    return unwrap<ApplyTagsResult>(await request<unknown>('/api/design-tags/apply', { method: 'POST', body }));
+    const result = unwrap<ApplyTagsResult>(await request<unknown>('/api/design-tags/apply', { method: 'POST', body }));
+    if (!result || !Array.isArray(result.added)) throw new UnexpectedResponse();
+    return result;
   } catch (err) {
     failTagRequest(err);
   }
@@ -63,10 +67,10 @@ function warnApply(result: ApplyTagsResult): void {
   }
 }
 
-function tagNamesFrom(raw: string[] | undefined): string[] {
-  const names = uniqueNames(raw ?? []);
-  if (names.length === 0) fail('Give at least one --tag <name>', 2);
-  return names;
+function tagRefsFrom(raw: string[] | undefined): TagRef[] {
+  const refs = uniqueRefs(raw ?? []);
+  if (refs.length === 0) fail('Give at least one --tag <name>', 2);
+  return refs;
 }
 
 interface ApplyOpts {
@@ -77,7 +81,7 @@ interface ApplyOpts {
 /** `tag add` and `tag remove`: one POST /api/design-tags/apply, add also creating missing tags. */
 async function runApply(designArgs: string[], opts: ApplyOpts, mode: 'add' | 'remove'): Promise<void> {
   const designIds = parseDesignIds(designArgs);
-  const refs = tagNamesFrom(opts.tag).map((name) => ({ name }));
+  const refs = tagRefsFrom(opts.tag);
   const result = await applyTags(
     mode === 'add' ? { designIds, add: refs, createMissing: true } : { designIds, remove: refs },
   );
@@ -142,7 +146,7 @@ export function registerTagCommands(program: Command): void {
     .command('add')
     .description('Tag designs; tags that do not exist yet are created. Spends no credits')
     .argument('<design-ids...>', `Design ids (from \`design list\`, \`collection get\` or a job's result_design_id), up to ${MAX_APPLY_DESIGNS}`)
-    .option('--tag <name>', 'Tag name, any case (repeatable)', collect, [] as string[])
+    .option('--tag <name>', 'Tag name (any case) or id (repeatable)', collect, [] as string[])
     .option('--human', 'Pretty-print')
     .action(async (designArgs: string[], opts: ApplyOpts) => {
       try { await runApply(designArgs, opts, 'add'); } catch (err) { fail(err); }
@@ -152,7 +156,7 @@ export function registerTagCommands(program: Command): void {
     .command('remove')
     .description('Take tags off designs (the tags themselves stay). Spends no credits')
     .argument('<design-ids...>', `Design ids, up to ${MAX_APPLY_DESIGNS}`)
-    .option('--tag <name>', 'Tag name, any case (repeatable)', collect, [] as string[])
+    .option('--tag <name>', 'Tag name (any case) or id (repeatable)', collect, [] as string[])
     .option('--human', 'Pretty-print')
     .action(async (designArgs: string[], opts: ApplyOpts) => {
       try { await runApply(designArgs, opts, 'remove'); } catch (err) { fail(err); }

@@ -104,7 +104,7 @@ quickdesign brand dna https://kizik.com
 quickdesign design list --limit 10
 quickdesign design download <id> -o ./out.jpg
 quickdesign tag add 85725 85330 --tag winner      # your team's tags (created if missing)
-quickdesign design list --tag winner --tag yüzük  # designs carrying both
+quickdesign design list --tag winner --tag yüzük  # your designs carrying both
 ```
 
 ## Authentication
@@ -246,7 +246,7 @@ Your own designs, served by the QuickDesign API. `--select a,b` keeps only those
 
 | Command | Notes |
 | --- | --- |
-| `list [--limit] [--offset] [--category <id>] [--tag <name>]… [--assets-only] [--archived]` | Your designs (most recent first). `--tag` (repeatable, at most 10) keeps designs carrying all the given team tags; a tag your team doesn't have is an error (exit 2) before anything is listed |
+| `list [--limit] [--offset] [--category <id>] [--tag <name>]… [--assets-only] [--archived]` | Your designs (most recent first). `--tag` (repeatable, at most 10) keeps your own designs carrying all the given team tags (teammates' designs and templates are not listed, so it can be fewer than `tag list`'s count); a tag your team doesn't have is an error (exit 2) before anything is listed |
 | `get <id>` | Full row |
 | `create <file\|url> [--title] [--asset]` | Save a local image/video (uploaded first) or your own uploaded URL as a design. `--asset` files it under library uploads |
 | `delete <id>` | Soft-delete (sets `isArchived = true`) |
@@ -264,7 +264,7 @@ Your collections and what is in them: your own plus the ones team mates share wi
 
 ### `tag` — your team's design tags
 
-Your team's own labels on designs ("winner", "revize", "black friday"): one set per team (just yours without a team), the same tags the app shows on cards. Not the template library's tags (`template filters`). `rename`, `delete` and `design list --tag` take a name or id; `add` and `remove` take names. Names are at most 32 characters and may not contain a comma. Spends no credits.
+Your team's own labels on designs ("winner", "revize", "black friday"): one set per team (just yours without a team), the same tags the app shows on cards. Not the template library's tags (`template filters`). Every tag command takes a tag name or id; `add` creates missing tags only from names. Names are at most 32 characters and may not contain a comma. Spends no credits.
 
 | Command | Notes |
 | --- | --- |

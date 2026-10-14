@@ -61,6 +61,13 @@ export function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
+/** A 200 whose body lacks what the contract promises. */
+export class UnexpectedResponse extends Error {
+  constructor() {
+    super('Unexpected response from the server');
+  }
+}
+
 /** Exit with a plain message for an /api/design-tags failure. */
 export function failTagRequest(err: unknown): never {
   if (err instanceof ApiError) {
@@ -82,7 +89,9 @@ export function failTagRequest(err: unknown): never {
 /** Your workspace's tags, most recently used first (the BFF's order). */
 export async function fetchTags(): Promise<DesignTagWithStats[]> {
   try {
-    return unwrap<{ tags: DesignTagWithStats[] }>(await request<unknown>('/api/design-tags')).tags;
+    const tags = unwrap<{ tags?: unknown }>(await request<unknown>('/api/design-tags'))?.tags;
+    if (!Array.isArray(tags)) throw new UnexpectedResponse();
+    return tags as DesignTagWithStats[];
   } catch (err) {
     failTagRequest(err);
   }
@@ -114,16 +123,19 @@ export function tagName(raw: string): string {
   return name;
 }
 
-/** Valid names with case-insensitive duplicates dropped (the first spelling wins). */
-export function uniqueNames(raw: string[]): string[] {
+export type TagRef = { id: string } | { name: string };
+
+/** `--tag` values as refs: a uuid is an id, anything else a validated name; case-insensitive duplicates dropped. */
+export function uniqueRefs(raw: string[]): TagRef[] {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const out: TagRef[] = [];
   for (const r of raw) {
-    const name = tagName(r);
-    const key = name.toLowerCase();
+    const v = r.trim();
+    const ref: TagRef = UUID.test(v) ? { id: v } : { name: tagName(r) };
+    const key = 'id' in ref ? ref.id.toLowerCase() : `n:${ref.name.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(name);
+    out.push(ref);
   }
   return out;
 }
@@ -159,8 +171,9 @@ export async function resolveFilterNames(raw: string[]): Promise<string[]> {
   const refs: string[] = [];
   for (const r of raw) {
     const ref = r.trim();
+    if (!ref) fail('Tag name must not be empty', 2);
     const key = ref.toLowerCase();
-    if (!ref || seen.has(key)) continue;
+    if (seen.has(key)) continue;
     seen.add(key);
     refs.push(ref);
   }

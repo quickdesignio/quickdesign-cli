@@ -225,3 +225,15 @@ test('design list --tag with --select still checks the rows before keeping colum
   assert.equal(code, 0);
   assert.deepEqual(JSON.parse(stdout), [{ id: 9 }]);
 });
+
+test('design list --tag with an empty or blank value is exit 2 before any request', async () => {
+  for (const v of ['', '  ']) {
+    bff = await fakeBff(() => ({ json: { success: true, data: [] } }));
+    const { code, stderr } = await runCli(['design', 'list', '--tag', v]);
+    assert.equal(code, 2);
+    assert.match(stderr, /Tag name must not be empty/);
+    assert.equal(bff.calls.length, 0);
+    await bff.close();
+  }
+  bff = undefined;
+});

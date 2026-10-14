@@ -17,7 +17,7 @@ This skill teaches Claude how to plan and execute AI media generation through th
 - **Video ad from a product page** — "make a video ad from this link" → `quickdesign video from-url` (`references/url-to-video.md`)
 - **Schedule organic Facebook / Instagram posts**: "post this design to our Page tomorrow at 10", "plan next week's Instagram posts", "what's scheduled?" → `quickdesign social` (`references/social-planner.md`)
 - **Your collections**: "what's in my Summer collection?", "use the images from my X collection" → `quickdesign collection list` then `collection get <id>` (items carry `design_id` + image/video URLs). File a result into one with `collection add <id-or-exact-name> <design-id...>` (a finished job's `result_design_id`)
-- **Your team's design tags**: "mark these as winner", "tag 85725 revize", "show our winners" → `quickdesign tag add <design-id...> --tag <name>` (creates missing tags; up to 50 design ids per call, a design holds at most 20 tags (`limit_reached` lists designs that hit it); names are max 32 chars, no comma), `tag remove …`, `tag list`, and `design list --tag <name>` (repeatable, max 10, all must match; an unknown tag is an error, exit 2; CLI ≥ 0.22.0). These are the team's own labels — NOT `template list --tag`, which filters the public template library. `tag delete` removes a tag from every design for the whole team: confirm with the user first, then pass `--yes`.
+- **Your team's design tags**: "mark these as winner", "tag 85725 revize", "show my winners" → `quickdesign tag add <design-id...> --tag <name>` (creates missing tags; up to 50 design ids per call, a design holds at most 20 tags (`limit_reached` lists designs that hit it); names are max 32 chars, no comma), `tag remove …`, `tag list`, and `design list --tag <name>` (lists only YOUR designs carrying the tag, so it can be fewer than `tag list`'s count; repeatable, max 10, all must match; an unknown tag is an error, exit 2; CLI ≥ 0.22.0). These are the team's own labels — NOT `template list --tag`, which filters the public template library. `tag delete` removes a tag from every design for the whole team: confirm with the user first, then pass `--yes`.
 - **Bulk / batch creative production** — "do this for each of these 5 product photos"
 - **Save a finished file to the library**: "QuickDesign'a design olarak kaydet", "put this edit in my library" → `quickdesign design create <file> --title "…"` (CLI ≥ 0.20.0). Not an upscale just to get a design row: that costs credits and changes the frame rate.
 
@@ -270,7 +270,7 @@ quickdesign collection add "Otta Week 1" 85725 --human # file designs into it (i
 quickdesign tag list --human                              # tags, colors, design counts
 quickdesign tag add 85725 85330 --tag winner --tag yüzük  # up to 50 ids; missing tags are created
 quickdesign tag remove 85725 --tag revize
-quickdesign design list --tag winner --tag yüzük          # designs carrying ALL the given tags
+quickdesign design list --tag winner --tag yüzük          # YOUR designs carrying ALL the given tags
 quickdesign tag rename winner kazanan --color green       # whole team
 quickdesign tag delete revize --yes                       # whole team, every design — ask the user first
 ```

@@ -326,3 +326,28 @@ test('tag rename of a tag to its own name in another case still patches', async 
   assert.deepEqual(bff.calls[1].body, { name: 'Winner' });
 });
 
+
+test('tag remove with a tag id sends an id ref', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const { code } = await runCli(['tag', 'remove', '1', '--tag', REVIZE.id.toUpperCase(), '--tag', REVIZE.id]);
+  assert.equal(code, 0);
+  assert.deepEqual(bff.calls[0].body, { designIds: [1], remove: [{ id: REVIZE.id.toUpperCase() }] });
+});
+
+test('tag add mixes id and name refs and still creates missing tags', async () => {
+  bff = await fakeBff(() => ({ json: APPLIED }));
+  const { code } = await runCli(['tag', 'add', '1', '--tag', REVIZE.id, '--tag', 'winner']);
+  assert.equal(code, 0);
+  assert.deepEqual(bff.calls[0].body, {
+    designIds: [1],
+    add: [{ id: REVIZE.id }, { name: 'winner' }],
+    createMissing: true,
+  });
+});
+
+test('tag list with an unexpected 200 body is exit 1', async () => {
+  bff = await fakeBff(() => ({ json: {} }));
+  const { code, stderr } = await runCli(['tag', 'list']);
+  assert.equal(code, 1);
+  assert.match(stderr, /Unexpected response from the server/);
+});
