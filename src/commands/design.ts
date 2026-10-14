@@ -1,14 +1,16 @@
 /**
- * `quickdesign design list|get|delete|download`
+ * `quickdesign design list|get|create|delete|download`
  *
  * Your own designs, served by the BFF (`/api/designs`) — the same rows and
  * columns CLI ≤ 0.16 read from Supabase PostgREST with a Supabase session,
  * which the CLI's own OAuth session cannot do.
  */
+import { existsSync } from 'node:fs';
 import { Command } from 'commander';
 import { request, ApiError } from '../client.js';
 import { emitJson, fail, note } from '../utils/output.js';
 import { downloadTo } from '../utils/download.js';
+import { looksLikeLocalPath, uploadLocalFile } from '../utils/upload.js';
 
 type DesignRow = Record<string, unknown> & {
   id: number;
@@ -85,6 +87,40 @@ export function registerDesignCommands(program: Command): void {
     .action(async (id: string) => {
       try {
         emitJson(await getDesign(designId(id)));
+      } catch (err) { fail(err); }
+    });
+
+  design
+    .command('create')
+    .description('Save an image or video as a design in your library (uploads a local file first)')
+    .argument('<file>', 'Local image/video, or a URL you already uploaded (https://ext.quickdesign.io/<your id>/…)')
+    .option('--title <text>', 'Design title (default: the file name)')
+    .option('--asset', 'Save it as a library upload (is_asset) instead of a regular design', false)
+    .action(async (file: string, opts: { title?: string; asset?: boolean }) => {
+      try {
+        let url = file;
+        if (looksLikeLocalPath(file)) {
+          if (!existsSync(file)) fail(`File not found: ${file}`, 2);
+          note(`Uploading ${file}…`);
+          url = await uploadLocalFile(file);
+        }
+        let row: DesignRow;
+        try {
+          row = (
+            await request<Envelope<DesignRow>>('/api/designs', {
+              method: 'POST',
+              body: { url, title: opts.title, asset: opts.asset ?? false },
+            })
+          ).data;
+        } catch (err) {
+          // A BFF from before this command answers POST /api/designs with 404.
+          if (err instanceof ApiError && err.status === 404) {
+            fail('This QuickDesign server does not support `design create` yet; it needs a newer BFF.');
+          }
+          throw err;
+        }
+        note(`Created design ${row.id}`);
+        emitJson(row);
       } catch (err) { fail(err); }
     });
 

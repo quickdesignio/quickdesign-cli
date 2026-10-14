@@ -246,6 +246,7 @@ Your own designs, served by the QuickDesign API. `--select a,b` keeps only those
 | --- | --- |
 | `list [--limit] [--offset] [--category <id>] [--assets-only] [--archived]` | Your designs (most recent first) |
 | `get <id>` | Full row |
+| `create <file\|url> [--title] [--asset]` | Save a local image/video (uploaded first) or your own uploaded URL as a design. `--asset` files it under library uploads |
 | `delete <id>` | Soft-delete (sets `isArchived = true`) |
 | `download <id> -o <path>` | Save the design's image or video to disk |
 

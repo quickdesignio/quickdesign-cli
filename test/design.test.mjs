@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fakeBff, nowS, runCli, tempHome, writeAuth } from './helpers.mjs';
 
@@ -67,4 +67,57 @@ test('design download saves the image', async () => {
   assert.equal(code, 0);
   assert.ok(existsSync(out));
   assert.equal(readFileSync(out, 'latin1'), 'PNGDATA');
+});
+
+const UPLOADED = 'https://ext.quickdesign.io/user-1/clip.mp4';
+
+test('design create uploads a local file, then saves it as a design', async () => {
+  bff = await fakeBff(({ path }) =>
+    path === '/api/uploads'
+      ? { json: { success: true, publicUrl: UPLOADED } }
+      : { status: 201, json: { success: true, data: { ...ROW, id: 77, video_url: UPLOADED } } },
+  );
+  const file = join(home, 'clip.mp4');
+  writeFileSync(file, 'MP4DATA');
+  const { code, stdout } = await runCli(['design', 'create', file, '--title', 'Ottasilver v2']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), { ...ROW, id: 77, video_url: UPLOADED });
+  assert.equal(bff.calls[0].path, '/api/uploads');
+  assert.match(bff.calls[0].body, /MP4DATA/);
+  assert.equal(bff.calls[1].method, 'POST');
+  assert.equal(bff.calls[1].path, '/api/designs');
+  assert.deepEqual(bff.calls[1].body, { url: UPLOADED, title: 'Ottasilver v2', asset: false });
+});
+
+test('design create sends a URL as is, and --asset saves it as a library upload', async () => {
+  bff = await fakeBff(() => ({ status: 201, json: { success: true, data: { ...ROW, id: 78 } } }));
+  const { code } = await runCli(['design', 'create', UPLOADED, '--asset']);
+  assert.equal(code, 0);
+  assert.equal(bff.calls.length, 1);
+  assert.deepEqual(bff.calls[0].body, { url: UPLOADED, asset: true });
+});
+
+test('design create on a missing file is exit 2 and calls nothing', async () => {
+  bff = await fakeBff(() => ({ json: { success: true } }));
+  const { code, stderr } = await runCli(['design', 'create', join(home, 'nope.mp4')]);
+  assert.equal(code, 2);
+  assert.match(stderr, /nope\.mp4/);
+  assert.equal(bff.calls.length, 0);
+});
+
+test('design create explains a server that does not have the route yet', async () => {
+  bff = await fakeBff(() => ({ status: 404, json: { success: false, error: 'Route not found' } }));
+  const { code, stderr } = await runCli(['design', 'create', UPLOADED]);
+  assert.equal(code, 1);
+  assert.match(stderr, /does not support `design create` yet/);
+});
+
+test('design create shows the server\'s reason for a rejected file', async () => {
+  bff = await fakeBff(() => ({
+    status: 400,
+    json: { success: false, error: 'The uploaded file was not found', code: 'FILE_NOT_FOUND' },
+  }));
+  const { code, stderr } = await runCli(['design', 'create', UPLOADED]);
+  assert.equal(code, 1);
+  assert.match(stderr, /The uploaded file was not found/);
 });
