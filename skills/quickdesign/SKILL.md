@@ -138,6 +138,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 |---|---|
 | UGC / talking-avatar / promo / explainer / multi-segment ad | `pipelines/ugc-video.md` → `models/seedance-2.5.md` |
 | Fix / redo one shot inside an existing video (extra or missing person, wrong product, identity drift) | `references/fix-a-shot.md` → regenerate only that shot on `seedance-2.5` with each person as a reference image, then splice it back |
+| Polish a finished video: random logo → brand card, keep the voiceover across a replaced shot, wrong product in an inset, AI-sounding effects → real recordings, save as a design | `references/edit-methods.md` (with `fix-a-shot.md` for the shot itself) |
 | User asks for Seedance 2.0, or needs native 4K (ask first — rule #0) | `models/seedance-2.0-r2v.md` |
 | Image edit (angle, state, multi-product composition) | `models/gpt-image-2-5-sunburst-i2i.md` → `references/multi-reference-pattern.md` |
 | 4:5 / 5:4 image, cheap drafts, text-to-image, "Banana Pro" | `models/nano-banana-2.md` (covers Nano Banana 2 / Pro / Lite) |
@@ -281,6 +282,7 @@ references/                        ← model-agnostic concepts (read for princip
    script-and-duration.md          ← word count → segment math, gender-neutral defaults
    first-frame-not-camera-motion.md ← why "static hold" / "slowly zooms" cause defects
    fix-a-shot.md                   ← redo one bad shot of an existing video on Seedance 2.5 and splice it back
+   edit-methods.md                 ← frame-range fixes around it: logo card, voiceover-safe shot swap, inset, real SFX, assemble, save
    brand-and-moderation.md         ← brand-kit conventions, content moderation
 pipelines/                         ← multi-step workflows (model-agnostic where possible)
    ugc-video.md                    ← canonical multi-segment talking-avatar method
