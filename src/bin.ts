@@ -127,6 +127,8 @@ Examples
   $ quickdesign ad-creator advantage-plus --product-url https://kizik.com/products/bowen --brand-kit <uuid> --wait -o ./ads
   $ quickdesign template list --tag Trending --limit 10 --human
   $ quickdesign design list --limit 10
+  $ quickdesign tag add 85725 85330 --tag winner
+  $ quickdesign design list --tag winner --tag yüzük
   $ quickdesign meta accounts --human
   $ quickdesign meta radar --account act_123 --compute --human
   $ quickdesign meta publish --account act_123 --page 456 --name "Summer Sale" \\

@@ -103,6 +103,8 @@ quickdesign brand dna https://kizik.com
 # --- Your designs -------------------------------------------------------
 quickdesign design list --limit 10
 quickdesign design download <id> -o ./out.jpg
+quickdesign tag add 85725 85330 --tag winner      # your team's tags (created if missing)
+quickdesign design list --tag winner --tag yüzük  # designs carrying both
 ```
 
 ## Authentication
@@ -244,7 +246,7 @@ Your own designs, served by the QuickDesign API. `--select a,b` keeps only those
 
 | Command | Notes |
 | --- | --- |
-| `list [--limit] [--offset] [--category <id>] [--assets-only] [--archived]` | Your designs (most recent first) |
+| `list [--limit] [--offset] [--category <id>] [--tag <name>]… [--assets-only] [--archived]` | Your designs (most recent first). `--tag` (repeatable, at most 10) keeps designs carrying all the given team tags; a tag your team doesn't have gives a warning and an empty list |
 | `get <id>` | Full row |
 | `create <file\|url> [--title] [--asset]` | Save a local image/video (uploaded first) or your own uploaded URL as a design. `--asset` files it under library uploads |
 | `delete <id>` | Soft-delete (sets `isArchived = true`) |
@@ -259,6 +261,18 @@ Your collections and what is in them: your own plus the ones team mates share wi
 | `list [--limit] [--offset] [--human]` | Your collections with item counts, most recently updated first |
 | `get <id> [--limit] [--offset] [--human]` | One collection plus a page of its items (newest added first) with image/video URLs |
 | `add <collection> <design-id...> [--human]` | Add up to 50 designs to a collection: give its id or its exact name. Your own, team mates' and template designs can be added; ones already there are skipped. Prints `added`, `already_in_collection` and `not_found`. Spends no credits |
+
+### `tag` — your team's design tags
+
+Your team's own labels on designs ("winner", "revize", "black friday"): one set per team (just yours without a team), the same tags the app shows on cards. Not the template library's tags (`template filters`). `rename`, `delete` and `design list --tag` take a name or id; `add` and `remove` take names. Names may not contain a comma. Spends no credits.
+
+| Command | Notes |
+| --- | --- |
+| `list [--human]` | Your tags with color, design count and last use, most recently used first |
+| `add <design-id...> --tag <name>… [--human]` | Tag up to 50 designs; tags that don't exist yet are created. Prints `added`, `already`, `created_tags`, `not_found` and `limit_reached` (designs at the 20-tag cap) |
+| `remove <design-id...> --tag <name>… [--human]` | Take tags off designs; the tags themselves stay |
+| `rename <tag> [new-name] [--color <c>] [--human]` | Rename and/or recolor a tag for the whole team. Colors: green, yellow, orange, red, purple, blue, teal, gray |
+| `delete <tag> [--yes] [--human]` | Delete a tag for the whole team — it comes off every design. Asks first; scripts and agents must pass `--yes` |
 
 ### `meta` — Deploy to Meta + analytics
 
