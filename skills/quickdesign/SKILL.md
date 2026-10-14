@@ -18,6 +18,7 @@ This skill teaches Claude how to plan and execute AI media generation through th
 - **Schedule organic Facebook / Instagram posts**: "post this design to our Page tomorrow at 10", "plan next week's Instagram posts", "what's scheduled?" → `quickdesign social` (`references/social-planner.md`)
 - **Your collections**: "what's in my Summer collection?", "use the images from my X collection" → `quickdesign collection list` then `collection get <id>` (items carry `design_id` + image/video URLs)
 - **Bulk / batch creative production** — "do this for each of these 5 product photos"
+- **Save a finished file to the library**: "QuickDesign'a design olarak kaydet", "put this edit in my library" → `quickdesign design create <file> --title "…"` (CLI ≥ 0.20.0). Not an upscale just to get a design row: that costs credits and changes the frame rate.
 
 Do NOT use for: pure text generation, code edits, search — those have their own tools.
 
@@ -255,6 +256,9 @@ quickdesign ad-creator advantage-plus --product-image ./mug.jpg --product-name "
 # Templates (the approved library at app.quickdesign.io/templates — never other users' designs)
 quickdesign template filters --human                 # categories + tags
 quickdesign template list --tag Trending --category "Static Ads" --limit 10 --human
+
+# Save a local image/video (e.g. a finished edit) as a design in your library
+quickdesign design create ./final.mp4 --title "Summer ad v2"     # --asset → library uploads instead
 
 # Your collections (own + shared by your team) and what is in them
 quickdesign collection list --human
