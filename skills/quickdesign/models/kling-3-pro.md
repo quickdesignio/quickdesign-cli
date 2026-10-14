@@ -2,11 +2,13 @@
 slug: kling-3-pro
 category: video_generate
 provider: fal
-status: budget
-description: Kling 3 family (Pro / Standard) plus Kling 2.6 Pro and O1 Edit. Cinematic motion models with no reference grammar in the CLI, no audio-continuity primitive, and weaker speech than Seedance. `kling-3-standard` (the CLI default for `--provider kling`) is the budget pick for simple loops, b-roll and non-spoken clips. `kling-3-pro` is the quality tier. Use when the user asks for Kling or when a non-spoken loop needs to be cheap.
+status: opt-in
+description: Kling 3 family (Pro / Standard) plus Kling 2.6 Pro and O1 Edit. Cinematic motion models with no reference grammar in the CLI, no audio-continuity primitive, and weaker speech than Seedance. `kling-3-standard` (the CLI default for `--provider kling`) is the budget pick for simple loops, b-roll and non-spoken clips. `kling-3-pro` is the quality tier. Use only when the user asks for Kling.
 ---
 
 ## When to use
+
+**Only when the user names this model** (or picks it when you ask). The default for every video job is the latest Seedance (`seedance-2.5`, `../SKILL.md` cardinal rule #0). The points below describe what this model is good at, so you can answer the user's questions about it. They are never a reason to switch on your own.
 
 - Budget-tight job, simple animation, no spoken voiceover
 - Non-UGC b-roll: product rotation, atmospheric loop, abstract motion
@@ -41,7 +43,7 @@ Camera-motion verbs ("slowly zooms in", "pans left", "tracking shot") work bette
 
 - `kling-3-standard`: cheaper, simpler animation, and the CLI default. Use it for loops where Pro's quality bump isn't worth the cost (a 10s clip is 95 cr vs 336 cr).
 - `kling-2.6-pro`: older, 5s / 10s only (64 / 100 cr). Kept for users with existing workflows. Default to `kling-3-*` for new work.
-- `kling-o1-edit`: video-to-video edit, 64 cr flat, niche use.
+- `kling-o1-edit`: video-to-video edit, only when the user names it. The BFF charges a flat 80 cr (the registry lists 64), and the MCP tool rejects it today because its registry row allows no reference video. Don't use it to fix a shot inside a video: on 2026-10-14, asked to remove one duplicated person, it removed the wrong people too. Regenerate the shot on Seedance 2.5 instead (`../references/fix-a-shot.md`).
 - `kling-2.1-*` are no longer in the registry.
 
 Compare via `quickdesign cost --category video | grep kling`.

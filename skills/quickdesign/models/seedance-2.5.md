@@ -3,19 +3,16 @@ slug: seedance-2.5
 category: video_generate
 provider: kie
 status: primary
-description: Seedance 2.5 (ByteDance, via kie.ai). Universal default for UGC / talking-avatar / promo / explainer work. One segment holds up to 30s, so most ad scripts fit in a single call with no voice-continuity step. Same labeled reference grammar as 2.0 R2V (@Image1 / @Video1 / @Audio1), up to 4 reference images, 3 reference videos, 3 reference audios. Must be selected with an explicit `--model seedance-2.5`.
+description: Seedance 2.5 (ByteDance, via kie.ai). Universal default for every video job (UGC, talking avatar, promo, explainer, b-roll, fixing a shot). One segment holds up to 30s, so most ad scripts fit in a single call with no voice-continuity step. Same labeled reference grammar as 2.0 R2V (@Image1 / @Video1 / @Audio1), up to 4 reference images, 3 reference videos, 3 reference audios. Must be selected with an explicit `--model seedance-2.5`.
 ---
 
 ## When to use
 
-**Default for any spoken-script video**: UGC, talking avatar, promo, explainer, multi-scene ad. The 30s ceiling means scripts of up to 30s of speech render as one continuous take (~60 words at the ~2 words/s convention in `../references/script-and-duration.md`), which keeps the voice, identity and setting consistent without stitching segments together.
+**Default for every video job** (`../SKILL.md` cardinal rule #0), spoken or not: UGC, talking avatar, promo, explainer, multi-scene ad, b-roll, loops, cinematic single shots, text-to-video, and redoing one shot of a finished video (`../references/fix-a-shot.md`). The 30s ceiling means scripts of up to 30s of speech render as one continuous take (~60 words at the ~2 words/s convention in `../references/script-and-duration.md`), which keeps the voice, identity and setting consistent without stitching segments together.
 
-Switch off 2.5 only when:
-- The shot needs **more than 4 reference images**. Use `seedance-2.0-r2v`, which takes up to 9 (`./seedance-2.0-r2v.md`).
-- The delivery needs **native 4K**. 2.5 tops out at 1080p. Use `seedance-2.0-r2v` at 4k, or upscale afterwards (`./topaz-video-upscale.md`).
-- **Budget is the driver**: 2.0 R2V at 1080p (25 cr/s) costs less than 2.5 at 720p (28 cr/s).
-- The user **explicitly names another model**.
-- It's **pure text-to-video with no reference at all**. See gotcha #1 and use `./flux-3.md`.
+Switch off 2.5 only when the user **names another model**. Cost, speed or "a better fit" are not reasons. When the request needs something 2.5 can't do, say so and ask before switching:
+- **Native 4K**: 2.5 tops out at 1080p. Offer an upscale afterwards (`./topaz-video-upscale.md`) or `seedance-2.0-r2v` at 4k.
+- **More reference images than the registry allows** (`maxReferenceImages`): merge some into one reference edit first, or offer `seedance-2.0-r2v`.
 
 ## Hard facts (live)
 
@@ -93,8 +90,8 @@ See `../references/voice-continuity.md` and `../pipelines/ugc-video.md`.
 
 ## Gotchas / failure modes
 
-1. **Prompt-only (no `--image`, no `--reference-*`) needs CLI ≥ 0.11.0.** CLIs up to 0.10.0 send reference-free jobs to `/start-text-to-video`, which doesn't serve 2.5. There it falls back to the legacy Seedance 1.0 text-to-video model but still bills at 2.5 rates. Check `quickdesign --version` first. On an older CLI, give 2.5 at least one reference, or use `flux-3-t2v` (`./flux-3.md`) for pure text-to-video.
-2. **More than 4 reference images.** The registry caps 2.5 at 4. For product-front + product-side + product-detail + avatar + scene (5 or more), either merge the product angles into one reference edit first (`./gpt-image-2-5-sunburst-i2i.md`) or switch to `seedance-2.0-r2v`.
+1. **Prompt-only (no `--image`, no `--reference-*`) needs CLI ≥ 0.11.0.** CLIs up to 0.10.0 send reference-free jobs to `/start-text-to-video`, which doesn't serve 2.5. There it falls back to the legacy Seedance 1.0 text-to-video model but still bills at 2.5 rates. Check `quickdesign --version` first. On an older CLI, give 2.5 at least one reference, or ask the user to update the CLI.
+2. **More reference images than the registry allows.** Check `maxReferenceImages` in `quickdesign video models`; the cap has changed before (cards written against a cap of 4). Past the cap, merge the product angles into one reference edit first (`./gpt-image-2-5-sunburst-i2i.md`), or ask the user about `seedance-2.0-r2v`.
 3. **Auto-layered music bed and hallucinated burned subtitles.** Same as 2.0. Keep `No music score.` and `No subtitles or on-screen text.` See `../references/no-music-no-subtitles.md`. For captions, use `quickdesign video subtitle` after generation.
 4. **Camera-motion verbs cause defects.** Don't write "slowly zooms in" or "static hold". See `../references/first-frame-not-camera-motion.md`.
 5. **Fine print drops across motion.** Make sure the reference edit preserves the label or engraving legibly, and name the exact text in the prompt.
@@ -102,7 +99,8 @@ See `../references/voice-continuity.md` and `../pipelines/ugc-video.md`.
 
 ## Cross-references
 
-- Fallback for >4 refs / 4K / budget → `./seedance-2.0-r2v.md`
+- Seedance 2.0, only on request (e.g. native 4K) → `./seedance-2.0-r2v.md`
+- Redo one bad shot of a finished video → `../references/fix-a-shot.md`
 - Reference-edit pre-stage → `./gpt-image-2-5-sunburst-i2i.md`
 - Multi-reference usage → `../references/multi-reference-pattern.md`
 - Voice continuity (>30s scripts) → `../references/voice-continuity.md`

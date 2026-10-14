@@ -2,18 +2,18 @@
 slug: seedance-2.0-r2v
 category: video_generate
 provider: fal | kie
-status: fallback
-description: Seedance 2.0 Reference-to-Video. Former default, now the FALLBACK to `seedance-2.5`. Pick it when a shot needs more than 4 reference images (takes up to 9), native 4K, or the lowest cost per second (1080p = 25 cr/s vs 2.5's 70). Same labeled reference grammar (@Image1 / @Audio1 / @Video1) and --reference-audio voice continuity, but a hard 15s cap per segment. It's also what the CLI silently picks when `--provider seedance` gets reference flags without `--model`.
+status: opt-in
+description: Seedance 2.0 Reference-to-Video. Former default. Use it only when the user asks for it, e.g. for a native 4K master (2.5 tops out at 1080p); never because it is cheaper per second. Same labeled reference grammar (@Image1 / @Audio1 / @Video1) and --reference-audio voice continuity, but a hard 15s cap per segment. It's also what the CLI silently picks when `--provider seedance` gets reference flags without `--model`.
 ---
 
 ## When to use
 
-The default is now `seedance-2.5` (`./seedance-2.5.md`). Use 2.0 R2V instead when:
+**Only when the user names this model** (or picks it when you ask). The default for every video job is the latest Seedance (`seedance-2.5`, `../SKILL.md` cardinal rule #0). The points below describe what this model is good at, so you can answer the user's questions about it. They are never a reason to switch on your own.
 
-- **More than 4 reference images** are needed in one shot (2.0 R2V takes up to 9; 2.5 takes 4)
-- **Native 4K** output is required (2.5 tops out at 1080p)
-- **Budget** is the driver: 12s@1080p = 300 cr here vs 840 cr on 2.5 at 1080p (336 cr at 720p)
-- The user **explicitly asks** for Seedance 2.0
+What 2.0 R2V offers that 2.5 doesn't:
+
+- **Native 4K** output (2.5 tops out at 1080p)
+- A lower price per second at 1080p: 12s@1080p = 300 cr here vs 840 cr on 2.5 (336 cr at 720p)
 
 It's still R2V, not i2v. Don't drop to `seedance-2.0-i2v` because the task looks "simple". See `../SKILL.md` cardinal rule #0.
 

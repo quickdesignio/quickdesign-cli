@@ -8,6 +8,8 @@ description: Gemini Omni Video (Google, via kie.ai). Low-cost image-to-video AND
 
 ## When to use
 
+**Only when the user names this model** (or picks it when you ask). The default for every video job is the latest Seedance (`seedance-2.5`, `../SKILL.md` cardinal rule #0). The points below describe what this model is good at, so you can answer the user's questions about it. They are never a reason to switch on your own.
+
 - Short interactive product shots where the **sound effects** matter: a lid clicking, liquid pouring, a zipper, packaging being torn open
 - Cheap motion tests before committing to a Seedance 2.5 render. An 8s clip costs 48 cr, against 336 cr or more for Seedance.
 - **Video-to-video**: restyling or re-sounding an existing clip (flat 152 cr, or 228 cr at 4k)

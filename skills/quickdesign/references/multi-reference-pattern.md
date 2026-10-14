@@ -53,7 +53,7 @@ quickdesign video generate \
 
 The product anchors don't dominate the action — Seedance treats them as identity locks for the prop. This is the same pattern as `audio_urls` for voice continuity, just for visual identity.
 
-**Seedance 2.5 takes at most 4 reference images** (plus up to 3 videos and 3 audios). If the shot genuinely needs more image anchors (avatar + scene + 3 product angles = 5), either fold some of them into the reference edit first, or switch to `--model seedance-2.0-r2v` (up to 9 images, 15s cap per segment) — see `../models/seedance-2.0-r2v.md`. Reference images must be 300–6000 px on each side or the BFF rejects the job before billing.
+**Seedance 2.5 takes up to the registry's `maxReferenceImages`** (check `quickdesign video models`; plus up to 3 videos and 3 audios). If the shot genuinely needs more image anchors than that, fold some of them into the reference edit first, or ask the user about `--model seedance-2.0-r2v` (up to 9 images, 15s cap per segment) — see `../models/seedance-2.0-r2v.md`. Reference images must be 300–6000 px on each side or the BFF rejects the job before billing.
 
 ## When to skip multi-ref
 

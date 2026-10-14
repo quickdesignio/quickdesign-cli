@@ -8,9 +8,11 @@ description: FLUX.3 video (Black Forest Labs, via fal.ai). Cinematic single shot
 
 ## When to use
 
+**Only when the user names this model** (or picks it when you ask). The default for every video job is the latest Seedance (`seedance-2.5`, `../SKILL.md` cardinal rule #0). The points below describe what this model is good at, so you can answer the user's questions about it. They are never a reason to switch on your own.
+
 - **Pure text-to-video** with no reference image, especially on CLI ≤ 0.10.0, where prompt-only Seedance 2.5 is misrouted (see `./seedance-2.5.md` gotcha #1).
 - A cinematic single shot where camera direction matters (tracking shot, crane, slow push-in). Unlike Seedance, Flux follows explicit camera verbs.
-- The user asks for "Sora" or "Sora quality". Sora 2 is retired, so say that and offer Flux 3 for cinematic single shots or Seedance 2.5 for spoken UGC.
+- The user asks for "Sora" or "Sora quality". Sora 2 is retired: say so, use Seedance 2.5, and mention Flux 3 as an option they can pick.
 
 Don't use for multi-segment spoken UGC. There is no `--reference-audio`, so every call generates a fresh voice. Don't use for product-fidelity work either, because without `@Image` labels the reference is only a first frame, not an identity anchor.
 
