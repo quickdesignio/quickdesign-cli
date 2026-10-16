@@ -1,18 +1,18 @@
 ---
-slug: nano-banana-2
+slug: nano-banana-2-1
 category: image_edit
 provider: fal | kie
 status: alternative
-description: Nano Banana family (Google Gemini image): `nano-banana-2`, `nano-banana-pro`, `nano-banana-lite-edit` / `-lite-t2i`. No longer the default image edit (that's `gpt-image-2-5-sunburst-i2i`). Use Nano Banana for 4:5 / 5:4 deliverables (Sunburst can't do them), cheap iteration (nano-banana-2 is 6 cr at 2K), text-to-image with no reference, and bulk drafts (Lite). Repeatable --reference-image, reasoned over in submission order as @Image1, @Image2, etc.
+description: Nano Banana family (Google Gemini image): `nano-banana-2-1` (Nano Banana 2.1, the family default and the registry's image `isLatest`), the older `nano-banana-2`, `nano-banana-pro`, `nano-banana-lite-edit` / `-lite-t2i`. No longer the default image edit (that's `gpt-image-2-5-sunburst-i2i`). Use Nano Banana for 4:5 / 5:4 deliverables (Sunburst can't do them), cheap iteration (nano-banana-2-1 is 3 cr at 2K), and text-to-image with no reference (Lite is now dearer than 2.1 at 1K). Repeatable --reference-image, reasoned over in submission order as @Image1, @Image2, etc.
 ---
 
 ## When to use
 
-The default image edit is `gpt-image-2-5-sunburst-i2i` (`./gpt-image-2-5-sunburst-i2i.md`). Reach for Nano Banana when:
+The default image edit is `gpt-image-2-5-sunburst-i2i` (`./gpt-image-2-5-sunburst-i2i.md`). Reach for Nano Banana when (and then start from `nano-banana-2-1`, Google's replacement for Nano Banana 2, at half its price):
 
 - **The deliverable is 4:5 or 5:4** (Meta feed). Sunburst silently clamps these to 3:4 / 4:3, while Nano Banana renders them natively.
-- **You're iterating cheaply**. `nano-banana-2` costs 3 / 4 / 6 / 8 cr (0.5K / 1K / 2K / 4K) against Sunburst's 12 / 18 / 24.
-- **There's no reference image** (text-to-image). `nano-banana-2` auto-switches to `nano-banana-2-t2i`, and `nano-banana-pro` does T2I natively.
+- **You're iterating cheaply**. `nano-banana-2-1` costs 2 / 3 / 4 cr (1K / 2K / 4K) against Sunburst's 12 / 18 / 24.
+- **There's no reference image** (text-to-image). `nano-banana-2-1` auto-switches to `nano-banana-2-1-t2i` (same price), and `nano-banana-pro` does T2I natively.
 - **The user explicitly asks** for Nano Banana / Banana Pro.
 
 Skip Nano Banana for **in-mouth / between-teeth prop edits**. Gemini's moderator rejects them even on benign editorial shots, so go straight to Sunburst (OpenAI moderation).
@@ -21,30 +21,31 @@ Skip Nano Banana for **in-mouth / between-teeth prop edits**. Gemini's moderator
 
 | Slug | Refs | Resolutions → cost | Notes |
 |---|---|---|---|
-| `nano-banana-2` | ~5 well-supported | 0.5K/1K/2K/4K → 3/4/6/8 cr | Cheapest full-res option. Aspect 1:1, 9:16, 16:9, 3:4, 4:3, 4:5, 5:4 |
+| `nano-banana-2-1` | up to 10 | 1K/2K/4K → 2/3/4 cr | Family default (registry `isLatest` for image edit). Better prompt adherence, steadier characters, cleaner text than 2. Aspect auto, 1:1, 9:16, 16:9, 4:5, 5:4, 3:4, 4:3, 2:3, 3:2, 21:9, 1:4, 4:1, 1:8, 8:1. No 0.5K |
+| `nano-banana-2` | ~5 well-supported | 0.5K/1K/2K/4K → 3/4/6/8 cr | Previous generation; the CLI's built-in default. Use only for 0.5K drafts or when asked. Aspect 1:1, 9:16, 16:9, 3:4, 4:3, 4:5, 5:4 |
 | `nano-banana-pro` | up to 8 | 1K/2K/4K → 8/16/32 cr | Higher fidelity (Gemini 3 Pro Image). Adds 2:3, 3:2, 21:9, auto. T2I without an image |
-| `nano-banana-lite-edit` | up to 8 | 1K only → 6 cr | Efficiency tier for bulk drafts |
+| `nano-banana-lite-edit` | up to 8 | 1K only → 6 cr | Older efficiency tier; `nano-banana-2-1` at 1K (2 cr) is cheaper |
 | `nano-banana-lite-t2i` | — | 1K only → 8 cr | Text-to-image drafts |
 
 ## Hard facts (live)
 
 ```bash
-quickdesign cost nano-banana-2 -r 2K --num 1
-quickdesign image models | jq '.data[] | select(.slug=="nano-banana-2")'
+quickdesign cost nano-banana-2-1 -r 2K --num 1
+quickdesign image models | jq '.data[] | select(.slug=="nano-banana-2-1")'
 ```
 
-- Resolutions (nano-banana-2): `0.5K` (1.5×), `1K` (2×), `2K` (3×, default), `4K` (4×). Cost = `2 (base) × multiplier × num` = 3 / 4 / 6 / 8 cr.
+- Resolutions (nano-banana-2-1): `1K` (2×), `2K` (3×, default), `4K` (4×). Cost = `1 (base) × multiplier × num` = 2 / 3 / 4 cr. (`nano-banana-2`: base 2, adds `0.5K` at 1.5× = 3 / 4 / 6 / 8 cr.)
 - Default to `2K` for talking-head / selfie / lifestyle edits.
 - Use `4K` only when the video integrates a **product** with fine detail (engraving, label text, stitching) where pixel fidelity matters in the downstream Seedance render.
-- Aspect ratios: `1:1`, `9:16`, `16:9`, `3:4`, `4:3`, `4:5`, `5:4`. Match the downstream video or feed aspect.
+- Aspect ratios: `1:1`, `9:16`, `16:9`, `3:4`, `4:3`, `4:5`, `5:4` on both (2.1 adds the wider set in the table). Match the downstream video or feed aspect.
 
 ## Multi-reference grammar
 
-Up to ~5 references is well-supported. Pass them as repeatable `--reference-image` in the order you want labeled:
+`nano-banana-2-1` takes up to 10 references (`nano-banana-2` ~5). Pass them as repeatable `--reference-image` in the order you want labeled:
 
 ```bash
 quickdesign image generate \
-  --model nano-banana-2 \
+  --model nano-banana-2-1 \
   --reference-image avatar.jpg \         # @Image1 — identity
   --reference-image product-side.jpg \   # @Image2 — product hero
   --reference-image product-top.jpg \    # @Image3 — product detail
@@ -75,7 +76,7 @@ hands and wrists clearly connected to forearms.
    - Switch to a TWO-HAND pose when single-hand grip keeps failing — banana handles two-hand grips far more reliably
    - Add explicit contact verbs ("palm wrapped around the heel, fingers gripping the toe")
    - Add an anatomy guard clause to the prompt: "exactly five fingers per hand, no extra digits, anatomically correct hands and wrists"
-   - A silent regen (4–6 cr) is cheap; the user's attention is not. Use 1-2 silent regens before paging the user. See `../references/confirmation-rules.md`.
+   - A silent regen (3 cr on 2.1 at 2K) is cheap; the user's attention is not. Use 1-2 silent regens before paging the user. See `../references/confirmation-rules.md`.
 
 2. **Fine print / engraving / label text drops or smears.** When the product has visible text (engraved "925" on jewelry, brand wordmarks, care labels, model numbers, billboard text in scene), banana routinely:
    - Drops the engraving entirely

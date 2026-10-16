@@ -15,9 +15,9 @@ description: GPT Image 2.5 Sunburst (image-to-image, via kie.ai). Default for im
 - Edits with an object **in the mouth / between the teeth**. Nano Banana (Gemini moderation) rejects these. Sunburst uses OpenAI moderation and lets editorial shots through.
 
 Use something else when:
-- **The deliverable is 4:5 or 5:4** (Meta feed). Sunburst doesn't support those ratios, so use `nano-banana-2` (or `nano-banana-pro` for higher fidelity). See `./nano-banana-2.md`.
-- **There's no reference image at all** (pure text-to-image). The i2i model returns a 400. Use `gpt-image-2-t2i`, or `gpt-image-2-5-sunburst-t2i` if `quickdesign image models` lists it as active.
-- **You're iterating on cheap drafts in bulk**. `nano-banana-2` at 1K (4 cr) or `nano-banana-lite-edit` (6 cr, 1K only) cost less.
+- **The deliverable is 4:5 or 5:4** (Meta feed). Sunburst doesn't support those ratios, so use `nano-banana-2-1` (or `nano-banana-pro` for higher fidelity). See `./nano-banana-2.md`.
+- **There's no reference image at all** (pure text-to-image). The i2i model returns a 400. Use `nano-banana-2-1` (it switches to `nano-banana-2-1-t2i` by itself, 2 / 3 / 4 cr), or `gpt-image-2-t2i` / `gpt-image-2-5-sunburst-t2i` when the user wants the GPT Image look.
+- **You're iterating on cheap drafts in bulk**. `nano-banana-2-1` at 1K (2 cr) or 2K (3 cr) costs a fraction.
 
 ## Hard facts (live)
 
@@ -26,7 +26,7 @@ quickdesign cost gpt-image-2-5-sunburst-i2i -r 2K --num 1
 quickdesign image models | jq '.data[] | select(.slug | startswith("gpt-image-2-5"))'
 ```
 
-- **`--model gpt-image-2-5-sunburst-i2i` is mandatory.** The CLI's built-in default is still `nano-banana-2`.
+- **`--model gpt-image-2-5-sunburst-i2i` is mandatory.** The CLI's built-in default is still the older `nano-banana-2`.
 - **References**: 1–10 `--reference-image`, reasoned over in submission order (`@Image1`, `@Image2`, …). jpeg/png/webp, ≤ 30 MB each.
 - **Resolutions**: `1K` / `2K` / `4K` (no `0.5K`). Cost = 6 × {1K:2, 2K:3, 4K:4} = **12 / 18 / 24 cr** per image. Default to `2K`. Use `4K` only when fine product detail (engraving, label text, stitching) has to survive into the video.
 - **Aspect ratios**: `auto`, `1:1`, `3:2`, `2:3`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9`, `27:16`, `16:27`, `9:8`, `8:9`.
@@ -74,9 +74,10 @@ These are general image-edit failure modes. Check every output for them before i
 
 | Slug | When | Cost (per image) |
 |---|---|---|
-| `nano-banana-2` | 4:5 / 5:4, cheap iteration, 0.5K drafts, auto T2I with no image | 3 / 4 / 6 / 8 cr (0.5K–4K) |
+| `nano-banana-2-1` | 4:5 / 5:4, cheap iteration, auto T2I with no image, up to 10 refs (registry `isLatest` for image edit) | 2 / 3 / 4 cr (1K–4K) |
+| `nano-banana-2` | Previous Nano Banana; only for 0.5K drafts or on request | 3 / 4 / 6 / 8 cr (0.5K–4K) |
 | `nano-banana-pro` | Higher-fidelity Gemini, up to 8 refs, 4:5, native T2I | 8 / 16 / 32 cr (1K–4K) |
-| `nano-banana-lite-edit` / `-lite-t2i` | Bulk drafts, 1K only | 6 / 8 cr |
+| `nano-banana-lite-edit` / `-lite-t2i` | Older drafts tier, 1K only (`nano-banana-2-1` is cheaper) | 6 / 8 cr |
 | `gpt-image-2-t2i` | Text-to-image with no reference | 12 / 18 / 24 cr |
 | `gpt-image-2-i2i` | Previous GPT Image edit model (supports 4:5 at default res) | 12 cr flat |
 | `seedream-v4.5` | Alternative edit model | 9 / 12 / 18 / 24 cr (0.5K–4K) |
@@ -88,5 +89,5 @@ Always confirm with `quickdesign cost --category image` because the registry rep
 - Edit vs compose verbs → `../references/avatar-edit-not-regenerate.md`
 - Multi-product reference pattern → `../references/multi-reference-pattern.md`
 - Anatomy self-check + approval gate → `../references/confirmation-rules.md`
-- Nano Banana family (4:5, budget, Pro, Lite) → `./nano-banana-2.md`
+- Nano Banana family (2.1 first; 4:5, budget, Pro, Lite) → `./nano-banana-2.md`
 - Feeds into → `./seedance-2.5.md`, `../pipelines/ugc-video.md`

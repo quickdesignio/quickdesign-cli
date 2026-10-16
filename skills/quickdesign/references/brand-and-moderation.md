@@ -64,7 +64,7 @@ Likely also triggers around: violence, body-part destruction, distress/scream la
 
 ## Rule 3: Object-in-mouth edits — never on Nano Banana; keep them on Sunburst / GPT Image
 
-When a reference edit needs to depict an object **held between teeth, in mouth, or with lips parted around the object**, the Nano Banana family (`nano-banana-2`, `nano-banana-pro`, `nano-banana-lite-*` — all Gemini) rejects with:
+When a reference edit needs to depict an object **held between teeth, in mouth, or with lips parted around the object**, the Nano Banana family (`nano-banana-2-1`, `nano-banana-2`, `nano-banana-pro`, `nano-banana-lite-*` — all Gemini) rejects with:
 
 > `"violated Google's Generative AI Prohibited Use policy"`
 
