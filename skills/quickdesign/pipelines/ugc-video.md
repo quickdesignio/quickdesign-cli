@@ -95,7 +95,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
      -p 'Edit @Image1: <the one change>. Same person, same outfit, same setting, same lighting, same props.' \
      -o <segN-ref.png> --wait
    ```
-   Sunburst has **no 4:5 / 5:4** (the BFF silently clamps 4:5 → 3:4). For a 4:5 deliverable use `nano-banana-2` instead — see `../models/nano-banana-2.md`.
+   Sunburst has **no 4:5 / 5:4** (the BFF silently clamps 4:5 → 3:4). For a 4:5 deliverable use `nano-banana-2-1` instead — see `../models/nano-banana-2.md`.
 
    For reference-edit prompts:
    - **Use edit-style verbs, not compose-style.** `Edit @Image1: ...` not `Compose a vertical 9:16 frame...`. The compose form regenerates a fresh AI-look image and loses the avatar's lighting + grain + lo-fi authenticity. See `../references/avatar-edit-not-regenerate.md` for the verb library + setting-lock principle.

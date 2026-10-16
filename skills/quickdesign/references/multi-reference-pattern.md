@@ -3,7 +3,7 @@ name: Multi-reference image pattern — pass every relevant photo as a separate 
 description: Both gpt-image-2-5-sunburst-i2i (default image edit) and Seedance 2.5 (default video generate) accept multiple reference images via repeatable `--reference-image` flags. The model reasons over them in order as `@Image1`, `@Image2`, `@Image3`. Always pass photos that the agent has — describing them in prompt text as a substitute is a regression.
 ---
 
-Both `quickdesign image generate --model gpt-image-2-5-sunburst-i2i` (up to 10 refs) and `quickdesign video generate --provider seedance --model seedance-2.5` (up to 4 refs) accept multiple reference images. The Nano Banana family does too (`nano-banana-2` ~5, `nano-banana-pro` 8). The model reasons over them in submission order: first ref = `@Image1`, second = `@Image2`, etc. The prompt then refers to them by label, not by description.
+Both `quickdesign image generate --model gpt-image-2-5-sunburst-i2i` (up to 10 refs) and `quickdesign video generate --provider seedance --model seedance-2.5` (up to 4 refs) accept multiple reference images. The Nano Banana family does too (`nano-banana-2-1` 10, `nano-banana-2` ~5, `nano-banana-pro` 8). The model reasons over them in submission order: first ref = `@Image1`, second = `@Image2`, etc. The prompt then refers to them by label, not by description.
 
 **Hard rule:** if the user has uploaded multiple photos of the same subject (a product from front + top + detail, an actor in two outfits, a setting from two angles), pass ALL of them as references. Describing additional details in prose instead of passing them as references is a regression — the model has to imagine what the prose meant and almost always invents details that don't match what the user has.
 
@@ -33,7 +33,7 @@ quickdesign image generate \
 
 Sunburst accepts up to 10 references, but more isn't automatically better — every reference competes for attention and subtle ones get dropped (seen on Nano Banana past ~5). Pick the most informative angles.
 
-`--model` is mandatory: the CLI's built-in default is still `nano-banana-2`. Sunburst needs at least one reference image, renders at `1K` / `2K` / `4K`, and has **no 4:5 / 5:4** (the BFF silently clamps 4:5 → 3:4). For a 4:5 Meta-feed deliverable use `--model nano-banana-2` (or `nano-banana-pro`) with `--aspect-ratio 4:5` instead. See `../models/gpt-image-2-5-sunburst-i2i.md`.
+`--model` is mandatory: the CLI's built-in default is still `nano-banana-2`. Sunburst needs at least one reference image, renders at `1K` / `2K` / `4K`, and has **no 4:5 / 5:4** (the BFF silently clamps 4:5 → 3:4). For a 4:5 Meta-feed deliverable use `--model nano-banana-2-1` (or `nano-banana-pro`) with `--aspect-ratio 4:5` instead. See `../models/gpt-image-2-5-sunburst-i2i.md`.
 
 ### Video generate (Seedance 2.5 — multi-ref to reduce in-motion drift)
 

@@ -29,7 +29,7 @@ Before drafting prompts, walk through this decision per segment:
 
 For example: source has a crystal in mouth, this segment needs an empty mouth; or source has glasses on, this segment needs glasses off; or source has hands at sides, this segment needs hands holding a product up.
 
-→ **Yes — if the state change is significant and the reference contradicts it, generate a state-matched reference edit for THAT segment** (default `gpt-image-2-5-sunburst-i2i`; `nano-banana-2` for 4:5). ~18cr per edit at 2K. Without this, the action description loses to the reference image and the state break is visible at the cut. This is also what forces a split: the state-matched reference needs its own segment.
+→ **Yes — if the state change is significant and the reference contradicts it, generate a state-matched reference edit for THAT segment** (default `gpt-image-2-5-sunburst-i2i`; `nano-banana-2-1` for 4:5). ~18cr per edit at 2K. Without this, the action description loses to the reference image and the state break is visible at the cut. This is also what forces a split: the state-matched reference needs its own segment.
 
 ### 3. Borderline / ambiguous?
 

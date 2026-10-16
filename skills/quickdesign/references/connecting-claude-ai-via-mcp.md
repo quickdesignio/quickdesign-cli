@@ -44,16 +44,19 @@ If anything fails mid-flow, the user should:
 
 ## What tools are available via MCP
 
-The MCP server exposes the full generation surface now, not just read tools (checked against the BFF tool registry, 2026-09-26):
+The MCP server exposes the full generation surface now, not just read tools (checked against the BFF tool registry, 2026-10-16):
 
 | Group | MCP tools | Cost |
 |---|---|---|
 | Spy Brands | `quickdesign_spy_search_brands`, `_spy_get_brand`, `_spy_get_brand_ads`, `_spy_best_ads`, `_spy_trending_ads`, `_spy_add_brand` | 0 |
 | Models / cost | `quickdesign_models`, `quickdesign_calculate_cost` | 0 |
 | Designs / templates | `quickdesign_design_list`, `quickdesign_template_list`, `quickdesign_template_filters` | 0 |
+| Collections / tags | `quickdesign_collection_list`, `_collection_items`, `_collection_add` (`new_collection_name` creates the collection, or reuses the caller's own one of that name), `quickdesign_tag_list`, `_tag_apply`, `_tag_update`, `_tag_delete` | 0 |
+| Uploads / product pages | `quickdesign_image_upload` (picker for chat attachments), `quickdesign_product_page_images` | 0 |
 | Brand DNA | `quickdesign_brand_scrape` | 0 |
 | Image generation | `quickdesign_image_generate`, `_image_status`, `_image_result`, `_image_history` | paid |
-| Video generation | `quickdesign_video_generate`, `_video_status`, `_video_history`, `_video_subtitle`, `_video_upscale` | paid |
+| Video generation | `quickdesign_video_generate`, `_video_status`, `_video_history`, `_video_subtitle`, `_video_upscale`, `quickdesign_replicate_video`, `quickdesign_url_to_video` | paid |
+| Audio and video editing | see the next section | mixed |
 | Ad Creator | `quickdesign_ad_creator_concepts`, `_ad_creator_generate`, `_ad_creator_advantage_plus`, `_ad_creator_status` | paid |
 | Flows | `quickdesign_flow_list`, `_flow_get`, `_flow_generate`, `_flow_edit`, `_flow_duplicate`, `_flow_delete` | paid when a flow runs |
 | Deploy Meta | `quickdesign_meta_accounts`, `_meta_publish`, `_meta_publish_status`, `_meta_campaigns`, `_meta_campaign_status`, `_meta_insights`, `_meta_report`, `_meta_radar`, `_meta_settings`, `_meta_comments`, `_meta_comments_sync`, `_meta_comment_action`, `_meta_comment_draft` | 0 credits (activating a campaign spends ad budget — see `./deploy-meta.md`) |
@@ -61,12 +64,29 @@ The MCP server exposes the full generation surface now, not just read tools (che
 
 Every skill rule applies on the MCP path exactly as on the CLI: plan summary + reference-edit gates (`./confirmation-rules.md`), `@Image1` labels, the no-music / no-subtitles lines.
 
-### Model defaults on MCP — always pass `model`
+### Audio and video editing (MCP only — no CLI command yet)
 
-The MCP tools keep legacy defaults, so pass the model explicitly:
+These tools take QuickDesign-hosted media (a `design_id` or a library URL) and save their result as a new design. In Claude Code, the CLI has no equivalent: tell the user it is an MCP tool, or do the ffmpeg step locally when that is enough.
 
-- `quickdesign_video_generate` with no `model` falls back to `seedance-2.0-r2v`. Pass `model: "seedance-2.5"` for the default video model (`../models/seedance-2.5.md`).
-- `quickdesign_image_generate` defaults to `nano-banana-2`. Pass `model: "gpt-image-2-5-sunburst-i2i"` plus `reference_image_urls` for the default edit path (`../models/gpt-image-2-5-sunburst-i2i.md`). Keep `nano-banana-2` for 4:5 deliverables.
+| Tool | What it does | Cost |
+|---|---|---|
+| `quickdesign_video_watch`, `_video_frame`, `_video_transcribe`, `quickdesign_audio_extract` | Look at frames with timestamps, grab one frame, word-level transcript, pull the sound track out as MP3 | 0 |
+| `quickdesign_video_trim`, `quickdesign_video_edit` | Cut one range; or cut / reorder / join clips and stills, speed, reformat (9:16 / 4:5 / 1:1 / 16:9), text, and audio tracks with roles (`voice`, `music`, `sfx`) | trim 0; edit 4 cr per started second of the result |
+| `quickdesign_voice_list`, `quickdesign_speech_generate`, `quickdesign_video_voiceover` | Voices by family (ElevenLabs stock voices, MiniMax stock + the user's cloned voices); text → speech; re-voice a video in one step | ElevenLabs v4 5 cr, v3 6 cr, MiniMax 6 cr per 1000 characters |
+| `quickdesign_audio_isolate` | Speech alone, without music / noise (ElevenLabs), ≤ 300 s | 0 |
+| `quickdesign_sfx_generate` | Sound effect from a description, 0.5–22 s, `loop` for ambience | 0 |
+| `quickdesign_music_generate`, `_music_status` | 2 music tracks, 10–360 s | fixed per generation (15 cr on the default model) |
+| `quickdesign_video_lipsync` | Re-sync the speaker's mouth to new speech (sync-lipsync v3), ≤ 120 s | 10 cr per second of the shorter input (min 10) |
+| `quickdesign_video_translate` | Dub into another language in the speaker's OWN cloned voice, lips synced (transcribe → clone → translate → speech → lip-sync), 10–300 s, 30 languages | ≈ 152 cr + 15 cr/s + 15 cr per 1000 translated characters (estimated from the length); charged on completion |
+
+Pick by intent: the same person in another language → `video_translate`; new words or a stock voice → `video_voiceover` (then `video_lipsync` if the face is on screen); clean a noisy voice → `audio_isolate`. Speech with an ElevenLabs voice uses the registry's latest ElevenLabs model unless `model` is passed.
+
+### Model defaults on MCP — follow the registry's `isLatest`
+
+A tool called without `model` runs the model its category flags `isLatest` in `quickdesign_models` (as of 2026-10-16: video `seedance-2.5`, image `nano-banana-2-1`, music `suno-v6`, speech `elevenlabs-tts-v4`); without a flag it keeps its old default. Still pass the model when the skill names one:
+
+- `quickdesign_video_generate`: pass `model: "seedance-2.5"` (`../models/seedance-2.5.md`). A legacy `provider` without `model` still picks that provider's old default.
+- `quickdesign_image_generate`: the model-less default is `nano-banana-2-1`, but the skill's edit default is Sunburst, so pass `model: "gpt-image-2-5-sunburst-i2i"` plus `reference_image_urls` (`../models/gpt-image-2-5-sunburst-i2i.md`). Use `nano-banana-2-1` for 4:5 deliverables and prompt-only images.
 - MCP routes any active registry slug (`flux-3-t2v` / `flux-3-i2v`, `gemini-omni-video`, `kling-*`) and rejects inputs the model can't take before any credits are spent. Prompt-only Seedance 2.5 works on MCP (it's routed to the right endpoint), and on CLI ≥ 0.11.0.
 - Sora 2 is retired (2026-09-23): `sora2-*` slugs come back as an unknown model. Use Seedance 2.5 instead; Flux 3 only if the user asks for it.
 

@@ -1,11 +1,11 @@
 ---
 name: quickdesign
-description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana, Flux 3, Gemini Omni Video, and Kling. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, video upscale, to replicate/remake a competitor's video ad with your product, to turn a product page URL into a video ad, or to schedule organic Facebook Page / Instagram posts (Social planner) via QuickDesign.
+description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana 2.1, Flux 3, Gemini Omni Video, and Kling. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, video upscale, to replicate/remake a competitor's video ad with your product, to turn a product page URL into a video ad, or to schedule organic Facebook Page / Instagram posts (Social planner) via QuickDesign.
 ---
 
 # QuickDesign CLI skill
 
-This skill teaches Claude how to plan and execute AI media generation through the `quickdesign` CLI. The CLI wraps QuickDesign's hosted models (Seedance 2.5 / 2.0, GPT Image 2.5 Sunburst, Nano Banana 2 / Pro / Lite, Flux 3, Gemini Omni Video, Kling, video upscale) so a Claude session can produce videos and images directly from Bash without managing API keys, polling, or storage upload.
+This skill teaches Claude how to plan and execute AI media generation through the `quickdesign` CLI. The CLI wraps QuickDesign's hosted models (Seedance 2.5 / 2.0, GPT Image 2.5 Sunburst, Nano Banana 2.1 / 2 / Pro / Lite, Flux 3, Gemini Omni Video, Kling, video upscale) so a Claude session can produce videos and images directly from Bash without managing API keys, polling, or storage upload.
 
 ## When to invoke
 
@@ -27,12 +27,12 @@ Do NOT use for: pure text generation, code edits, search — those have their ow
 
 These apply to every generation. Breaking any of them produces visible defects.
 
-0. **Default models: video = the latest Seedance (`seedance-2.5` today), image edit = `gpt-image-2-5-sunburst-i2i`. ALWAYS pass `--model` explicitly.** The CLI's built-in fallbacks are older models: `--provider seedance` without `--model` silently runs Seedance 2.0, and `image generate` without `--model` runs `nano-banana-2`.
+0. **Default models: video = the latest Seedance (`seedance-2.5` today), image edit = `gpt-image-2-5-sunburst-i2i`. ALWAYS pass `--model` explicitly.** The CLI's built-in fallbacks are older models: `--provider seedance` without `--model` silently runs Seedance 2.0, and `image generate` without `--model` runs `nano-banana-2` (the older Nano Banana; `nano-banana-2-1` replaced it).
 
    - **Video — one default, every job**: `quickdesign video generate --provider seedance --model seedance-2.5 …` for EVERY video job: UGC / talking-avatar / promo / explainer / multi-scene, b-roll and loops, cinematic single shots, pure text-to-video, restyles, and **fixing or redoing a shot inside an existing video** (`references/fix-a-shot.md`). One 2.5 segment holds up to **30s** (durations 5/8/10/12/15/20/25/30), 3 reference videos and 3 reference audios; the reference-image cap is the registry's `maxReferenceImages` (check `quickdesign video models`). Default to **720p** (28 cr/s). 1080p costs 2.5× as much and 4K isn't available. See `models/seedance-2.5.md`.
-   - **"Latest" comes from the registry.** Before a video job, `quickdesign video models` shows what is active. If a newer Seedance generation than `seedance-2.5` is active (e.g. `seedance-3`), that one is the default: use it, and tell the user the cards look stale.
+   - **"Latest" comes from the registry.** Each category has at most one model flagged `isLatest: true` in `quickdesign video models` / `image models` (as of 2026-10-16: `seedance-2.5` for video, `nano-banana-2-1` for image edit, `suno-v6` for music, `elevenlabs-tts-v4` for speech). It is what the MCP tools run when no model is named. Before a video job, check the flag: if a newer Seedance generation than `seedance-2.5` carries it (e.g. `seedance-3`), that one is the default: use it, and tell the user the cards look stale. The CLI itself never reads the flag, so keep passing `--model`.
    - **No silent model switches.** Never move a video job to another model (`kling-*` including `kling-o1-edit`, `gemini-omni-video`, `flux-3-*`, `seedance-2.0-*`) because it looks cheaper, faster or better suited. Use another model only when the user names it. When the default truly can't do what was asked (native 4K, more reference images than the registry allows), say so and ask with `AskUserQuestion` before switching. The model cards for the other models describe what they do so you can answer the user's questions about them, not as triggers to switch.
-   - **Image edit**: `quickdesign image generate --model gpt-image-2-5-sunburst-i2i --reference-image …` (1–10 refs, 1K/2K/4K). Exceptions: **4:5 / 5:4 deliverables** go to `nano-banana-2` (Sunburst silently clamps them to 3:4 / 4:3), and **no reference at all** goes to `gpt-image-2-t2i` (the i2i model 400s). See `models/gpt-image-2-5-sunburst-i2i.md`.
+   - **Image edit**: `quickdesign image generate --model gpt-image-2-5-sunburst-i2i --reference-image …` (1–10 refs, 1K/2K/4K). Sunburst stays the edit default even though the registry flags `nano-banana-2-1` as the image `isLatest` (that flag only picks the MCP's model-less default). Exceptions: **4:5 / 5:4 deliverables** go to `nano-banana-2-1` (Sunburst silently clamps them to 3:4 / 4:3), and **no reference at all** goes to `nano-banana-2-1` too (it switches to its `-t2i` row by itself; the Sunburst i2i model 400s). See `models/gpt-image-2-5-sunburst-i2i.md`.
    - **Sora 2 is retired** (2026-09-23), so `--provider sora2` no longer works. If the user asks for Sora, say so and use Seedance 2.5; mention Flux 3 (`models/flux-3.md`) only as an option the user can pick.
 
    ⚠️ **Stay in reference mode; don't drift to i2v.** Animating a single image still means one `--reference-image` on Seedance 2.5, not `--image` and not `seedance-2.0-i2v`. The reasoning chain *"user wants to animate static images → image-to-video → i2v"* is the silent regression this rule exists to prevent. Reference mode keeps `@Image1` grammar, multi-ref and `--reference-audio`. On 2.5, `--image` (first-frame mode) and `--reference-*` are mutually exclusive.
@@ -143,7 +143,8 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Polish a finished video: random logo → brand card, keep the voiceover across a replaced shot, wrong product in an inset, AI-sounding effects → real recordings, save as a design | `references/edit-methods.md` (with `fix-a-shot.md` for the shot itself) |
 | User asks for Seedance 2.0, or needs native 4K (ask first — rule #0) | `models/seedance-2.0-r2v.md` |
 | Image edit (angle, state, multi-product composition) | `models/gpt-image-2-5-sunburst-i2i.md` → `references/multi-reference-pattern.md` |
-| 4:5 / 5:4 image, cheap drafts, text-to-image, "Banana Pro" | `models/nano-banana-2.md` (covers Nano Banana 2 / Pro / Lite) |
+| 4:5 / 5:4 image, cheap drafts, text-to-image, "Banana Pro" | `models/nano-banana-2.md` (covers Nano Banana 2.1 / 2 / Pro / Lite; `nano-banana-2-1` first) |
+| Voice-over, dubbing / translating a video, lip-sync, voice isolation, sound effects, music | No CLI command yet: MCP tools only (`references/connecting-claude-ai-via-mcp.md`, "Audio and video editing") |
 | Cinematic single shot, pure text-to-video, "use Sora" | `models/seedance-2.5.md` (Sora 2 is retired; `models/flux-3.md` only when the user names Flux) |
 | Short product clip with synced sound effects, video-to-video restyle | `models/seedance-2.5.md` (`models/gemini-omni-video.md` only when the user names Gemini Omni) |
 | Re-create a competitor/reference video ad with your product | `references/replicate-video.md` → `quickdesign video replicate` (confirm the cost first; pass `--brand-kit` when the user has one) |
@@ -173,17 +174,17 @@ These apply to every generation. Breaking any of them produces visible defects.
 
 The model registry is DB-driven and changes over time (new providers, retired versions, repriced tiers). **Don't hardcode model assumptions** — query the registry first when picking between alternatives.
 
-The model facts in this skill (defaults, caps, prices) were last checked against the live registry on **2026-09-26**. If `quickdesign video models` / `image models` disagree with a card, the registry wins, so tell the user the card looks stale.
+The model facts in this skill (defaults, caps, prices) were last checked against the live registry on **2026-10-16**. If `quickdesign video models` / `image models` disagree with a card, the registry wins, so tell the user the card looks stale.
 
 ```bash
-quickdesign video models                            # active video models
+quickdesign video models                            # active video models (isLatest marks the category default)
 quickdesign image models                            # active image-edit models
 quickdesign cost                                    # all models, grouped by category
 quickdesign cost --category video
 quickdesign cost <slug> -d <duration> -r <resolution>   # exact compute for one model + params
 ```
 
-When a newer Seedance generation lands in the registry, it is the video default from that moment (cardinal rule #0): drop a card in `models/<slug>.md` (copy the format from any existing card) and update rule #0 and the decision tree. A new model from another family is an option to mention, not a new default.
+When a newer Seedance generation lands in the registry and takes the `isLatest` flag, it is the video default from that moment (cardinal rule #0): drop a card in `models/<slug>.md` (copy the format from any existing card) and update rule #0 and the decision tree. A new model from another family is an option to mention, not a new default.
 
 ## Quick start — common commands
 
@@ -197,7 +198,7 @@ If any command fails with `Session ended — run quickdesign login`, stop and as
 
 ```bash
 # Image edit — angle change / state change / multi-ref product composition
-# (4:5 feed image? use --model nano-banana-2 instead — Sunburst has no 4:5)
+# (4:5 feed image? use --model nano-banana-2-1 instead — Sunburst has no 4:5)
 quickdesign image generate \
   --model gpt-image-2-5-sunburst-i2i \
   --reference-image ~/path/to/avatar.jpg \
@@ -305,7 +306,7 @@ models/                            ← per-model reference cards (gotchas + prom
    seedance-2.0-r2v.md             ← only on request: Seedance 2.0, native 4K
    seedance-2.0-i2v.md             ← niche; explicit user opt-in only
    gpt-image-2-5-sunburst-i2i.md   ← DEFAULT image edit + multi-ref product composition
-   nano-banana-2.md                ← Nano Banana 2 / Pro / Lite: 4:5, budget, text-to-image
+   nano-banana-2.md                ← Nano Banana 2.1 / 2 / Pro / Lite: 4:5, budget, text-to-image
    flux-3.md                       ← only on request: Flux 3 text/image-to-video
    gemini-omni-video.md            ← only on request: Gemini Omni image/video→video
    kling-3-pro.md                  ← only on request: Kling family (incl. O1 Edit)
