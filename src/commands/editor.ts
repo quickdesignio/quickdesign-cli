@@ -7,7 +7,7 @@
  */
 import { Command } from 'commander';
 import kleur from 'kleur';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { callMcpTool, editorCallTimeoutMs, type McpContent, type McpToolResult } from '../utils/mcp.js';
@@ -143,12 +143,21 @@ function readArgs(inline: string | undefined, file: string | undefined): Record<
   return parsed as Record<string, unknown>;
 }
 
-const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-const extFor = (mime: string): string => EXT[mime.toLowerCase()] ?? mime.split('/')[1]?.replace(/[^a-z0-9]/gi, '') ?? 'bin';
+const EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/svg+xml': 'svg',
+};
+const extFor = (mime: string): string => EXT[mime.toLowerCase().split(';')[0].trim()] ?? 'bin';
 
 /** Write each image block to a file and return the absolute paths. */
 function saveImages(blocks: ImageBlock[], tool: string, out: string | undefined): string[] {
   const stamp = Date.now();
+  // Default files go into a fresh private dir, so a planted symlink in a shared tmpdir is never followed.
+  const tmpDir = out || blocks.length === 0 ? undefined : mkdtempSync(path.join(tmpdir(), 'quickdesign-editor-'));
   return blocks.map((img, i) => {
     let target: string;
     if (out) {
@@ -159,11 +168,11 @@ function saveImages(blocks: ImageBlock[], tool: string, out: string | undefined)
       }
     } else {
       const safe = tool.replace(/[^\w.-]/g, '_');
-      target = path.join(tmpdir(), `quickdesign-editor-${safe}-${stamp}${blocks.length > 1 ? `-${i + 1}` : ''}.${extFor(img.mimeType)}`);
+      target = path.join(tmpDir!, `quickdesign-editor-${safe}-${stamp}${blocks.length > 1 ? `-${i + 1}` : ''}.${extFor(img.mimeType)}`);
     }
     const abs = path.resolve(target);
     mkdirSync(path.dirname(abs), { recursive: true });
-    writeFileSync(abs, Buffer.from(img.data, 'base64'));
+    writeFileSync(abs, Buffer.from(img.data, 'base64'), { flag: out ? 'w' : 'wx' });
     return abs;
   });
 }
@@ -186,8 +195,16 @@ async function runCall(tool: string, argsText: string | undefined, opts: CallOpt
     fail(err);
   }
 
-  const paths = result.isError ? [] : saveImages(images(result), tool, opts.out);
   const blocks = texts(result);
+  let paths: string[] = [];
+  if (!result.isError) {
+    try {
+      paths = saveImages(images(result), tool, opts.out);
+    } catch (err) {
+      for (const b of blocks) process.stdout.write(`${b.text}\n`);
+      fail(`The edit was applied, but the image could not be saved: ${(err as Error).message}`);
+    }
+  }
 
   if (opts.json) {
     emitJson({
@@ -203,6 +220,8 @@ async function runCall(tool: string, argsText: string | undefined, opts: CallOpt
   }
 
   if (result.isError) failWith(result);
+
+  if (result.content.length === 0) note('(no output)');
 
   // First block is the tab/project header when more than one text block came back.
   blocks.forEach((b, i) => {
@@ -222,7 +241,7 @@ async function runCall(tool: string, argsText: string | undefined, opts: CallOpt
 
 async function runAddMedia(designId: string, opts: { tab?: string }): Promise<void> {
   if (!/^\d+$/.test(designId) || Number(designId) <= 0) fail('design-id must be a positive number.', 2);
-  const result = await run('quickdesign_editor_add_media', defined({ designId: Number(designId), tabId: opts.tab }), 125_000);
+  const result = await run('quickdesign_editor_add_media', defined({ designId: Number(designId), tabId: opts.tab }), 135_000);
   const parsed = texts(result).map((t) => parseJson(t.text));
   const mediaId = parsed.map((p) => find(p, 'mediaId')).find((v) => v !== undefined);
   if (mediaId !== undefined) process.stdout.write(`mediaId: ${String(mediaId)}\n`);

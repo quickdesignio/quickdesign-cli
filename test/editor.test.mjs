@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fakeBff, nowS, plain, runCli, tempHome, writeAuth } from './helpers.mjs';
+import { delay, fakeBff, nowS, plain, runCli, tempHome, writeAuth } from './helpers.mjs';
 
 let home;
 let bff;
@@ -243,4 +243,66 @@ test('transcribe_clip waits longer than other editor tools', async () => {
   const { editorCallTimeoutMs } = await import('../dist/utils/mcp.js');
   assert.equal(editorCallTimeoutMs('transcribe_clip'), 200_000);
   assert.equal(editorCallTimeoutMs('cut_ranges'), 75_000);
+});
+
+const noStack = (stderr) => assert.doesNotMatch(stderr, /\n\s+at /);
+
+test('a JSON-RPC "Session not found" error surfaces as-is, not as "not available"', async () => {
+  bff = await fakeBff((call) => ({ json: { jsonrpc: '2.0', id: call.body.id, error: { code: -32001, message: 'Session not found' } } }));
+  const { code, stderr } = await runCli(['editor', 'status']);
+  assert.equal(code, 1);
+  assert.match(stderr, /Session not found/);
+  assert.doesNotMatch(stderr, /isn't available/);
+});
+
+test('a reply that never comes ends with a one-line timeout error', async () => {
+  bff = await fakeBff(async () => { await delay(5000); return {}; });
+  const { code, stderr } = await runCli(['editor', 'call', 'cut_ranges'], { QUICKDESIGN_EDITOR_TIMEOUT_MS: '300' });
+  assert.equal(code, 1);
+  assert.match(stderr, /The editor did not answer within 300ms\./);
+  noStack(stderr);
+});
+
+test('a reply with no matching id is a clear error', async () => {
+  bff = await fakeBff((call) => ({ json: { jsonrpc: '2.0', id: call.body.id + 1000, result: { content: [text('x')] } } }));
+  const { code, stderr } = await runCli(['editor', 'status']);
+  assert.equal(code, 1);
+  assert.match(stderr, /sent no answer for this call/);
+  noStack(stderr);
+});
+
+test('a non-JSON reply body is a clear error', async () => {
+  bff = await fakeBff(() => ({ raw: '<html>oops</html>', headers: { 'Content-Type': 'text/html' } }));
+  const { code, stderr } = await runCli(['editor', 'status']);
+  assert.equal(code, 1);
+  assert.match(stderr, /Unexpected reply from the QuickDesign MCP endpoint\./);
+  noStack(stderr);
+});
+
+test('an image that cannot be written says the edit was applied', async () => {
+  bff = await fakeBff((call) => ({ json: rpc(call, { content: [text({ ok: true, summary: 'Rendered' }), { type: 'image', data: PNG.toString('base64'), mimeType: 'image/png' }] }) }));
+  const blocker = join(mkdtempSync(join(tmpdir(), 'qd-editor-')), 'file');
+  writeFileSync(blocker, 'x');
+  const { code, stderr } = await runCli(['editor', 'call', 'view_frames', '--out', join(blocker, 'sub', 'a.png')]);
+  assert.equal(code, 1);
+  assert.match(stderr, /The edit was applied, but the image could not be saved: /);
+  noStack(stderr);
+});
+
+test('image extensions come from a small table (svg, gif) and fall back to bin', async () => {
+  bff = await fakeBff((call) => ({ json: rpc(call, { content: [
+    { type: 'image', data: 'AA==', mimeType: 'image/svg+xml' },
+    { type: 'image', data: 'AA==', mimeType: 'image/gif' },
+    { type: 'image', data: 'AA==', mimeType: 'image/x-weird' },
+  ] }) }));
+  const { stdout } = await runCli(['editor', 'call', 'inspect_preview']);
+  const paths = [...stdout.matchAll(/image saved: (.+)/g)].map((m) => m[1]);
+  assert.deepEqual(paths.map((p) => p.split('.').pop()), ['svg', 'gif', 'bin']);
+});
+
+test('an empty content array prints a "(no output)" note', async () => {
+  bff = await fakeBff((call) => ({ json: rpc(call, { content: [] }) }));
+  const { code, stderr } = await runCli(['editor', 'call', 'noop']);
+  assert.equal(code, 0);
+  assert.match(stderr, /\(no output\)/);
 });

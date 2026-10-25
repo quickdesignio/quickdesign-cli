@@ -26,7 +26,16 @@ interface JsonRpcMessage {
 
 let nextId = 1;
 
-const UNKNOWN_TOOL = /\b(not found|unknown tool|no such tool)\b/i;
+/** Internal, for tests: QUICKDESIGN_EDITOR_TIMEOUT_MS overrides every call's timeout. */
+function budget(ms: number | undefined): number {
+  const env = Number(process.env.QUICKDESIGN_EDITOR_TIMEOUT_MS);
+  return Number.isFinite(env) && env > 0 ? env : (ms ?? 75_000);
+}
+const timeoutMessage = (ms: number): string =>
+  `The editor did not answer within ${ms >= 1000 ? Math.round(ms / 1000) + 's' : ms + 'ms'}.`;
+
+/** The SDK's tool-lookup failure: "[MCP error -32602: ]Tool <name> not found" (or "Unknown tool"). */
+const UNKNOWN_TOOL = /^(MCP error -?\d+: )?(Tool \S+ not found|Unknown tool\b)/i;
 
 export async function callMcpTool(
   name: string,
@@ -41,7 +50,7 @@ export async function callMcpTool(
       raw: true,
       headers: { Accept: 'application/json, text/event-stream' },
       body: { jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } },
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 75_000),
+      signal: AbortSignal.timeout(budget(opts.timeoutMs)),
     });
   } catch (err) {
     if (err instanceof ApiError) {
@@ -49,7 +58,7 @@ export async function callMcpTool(
       throw new Error(err.status === 401 || err.status === 403 ? err.message : `${err.message}${detail}`);
     }
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-      throw new Error(`The editor did not answer within ${Math.round((opts.timeoutMs ?? 75_000) / 1000)}s.`);
+      throw new Error(timeoutMessage(budget(opts.timeoutMs)));
     }
     throw err;
   }
@@ -67,7 +76,7 @@ export async function callMcpTool(
     }
   } catch (err) {
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-      throw new Error(`The editor did not answer within ${Math.round((opts.timeoutMs ?? 75_000) / 1000)}s.`);
+      throw new Error(timeoutMessage(budget(opts.timeoutMs)));
     }
     throw new Error('Unexpected reply from the QuickDesign MCP endpoint.');
   }
