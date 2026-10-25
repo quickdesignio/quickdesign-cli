@@ -18,6 +18,7 @@ This skill teaches Claude how to plan and execute AI media generation through th
 - **Schedule organic Facebook / Instagram posts**: "post this design to our Page tomorrow at 10", "plan next week's Instagram posts", "what's scheduled?" → `quickdesign social` (`references/social-planner.md`)
 - **Your collections**: "what's in my Summer collection?", "use the images from my X collection" → `quickdesign collection list` then `collection get <id>` (items carry `design_id` + image/video URLs). File a result into one with `collection add <id-or-exact-name> <design-id...>` (a finished job's `result_design_id`)
 - **Your team's design tags**: "mark these as winner", "tag 85725 revize", "show my winners" → `quickdesign tag add <design-id...> --tag <name>` (creates missing tags; up to 50 design ids per call, a design holds at most 20 tags (`limit_reached` lists designs that hit it); names are max 32 chars, no comma), `tag remove …`, `tag list`, and `design list --tag <name>` (lists only YOUR designs carrying the tag, so it can be fewer than `tag list`'s count; repeatable, max 10, all must match; an unknown tag is an error, exit 2; CLI ≥ 0.22.0). These are the team's own labels — NOT `template list --tag`, which filters the public template library. `tag delete` removes a tag from every design for the whole team: confirm with the user first, then pass `--yes`.
+- **Edit the video open in the user's QuickDesign editor**: "cut the silences", "remove the filler words", trim, captions, text, transitions, save → `quickdesign editor …` (`references/video-editor.md`; CLI ≥ 0.23.0; the editor must be open)
 - **Bulk / batch creative production** — "do this for each of these 5 product photos"
 - **Save a finished file to the library**: "QuickDesign'a design olarak kaydet", "put this edit in my library" → `quickdesign design create <file> --title "…"` (CLI ≥ 0.20.0). Not an upscale just to get a design row: that costs credits and changes the frame rate.
 
@@ -151,6 +152,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Video ad straight from a product / landing page URL | `references/url-to-video.md` → `quickdesign video from-url` (confirm the cost first; pass `--brand-kit` when the user has one) |
 | Loop / non-spoken b-roll | `models/seedance-2.5.md` (`models/kling-3-pro.md` only when the user names Kling) |
 | Final video too low-res | `models/topaz-video-upscale.md` (run after concat) |
+| Edit the video the user has open in their QuickDesign editor (cut silences / filler words, trim, captions, text, transitions, save) | `references/video-editor.md` → `quickdesign editor …` (CLI ≥ 0.23.0; the editor must be open) |
 | Add captions to existing video | `references/auto-subtitle.md` |
 | Brand not in Spy Brands library / 0 search results | `references/spybrands-add-on-miss.md` |
 | User is on claude.ai (web) and asks about QuickDesign | `references/connecting-claude-ai-via-mcp.md` |
@@ -298,6 +300,7 @@ references/                        ← model-agnostic concepts (read for princip
    first-frame-not-camera-motion.md ← why "static hold" / "slowly zooms" cause defects
    fix-a-shot.md                   ← redo one bad shot of an existing video on Seedance 2.5 and splice it back
    edit-methods.md                 ← frame-range fixes around it: logo card, voiceover-safe shot swap, inset, real SFX, assemble, save
+   video-editor.md                 ← `editor` commands: drive the user's open QuickDesign video editor live (status → tools → call), cut silences, save
    brand-and-moderation.md         ← brand-kit conventions, content moderation
 pipelines/                         ← multi-step workflows (model-agnostic where possible)
    ugc-video.md                    ← canonical multi-segment talking-avatar method
