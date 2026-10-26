@@ -33,7 +33,7 @@ OK to proceed, or want to adjust duration / resolution / audio / aspect?
 
 Wait for "yes / proceed / go" or a tweak. Don't infer consent from silence.
 
-**Skip the explicit-wait ONLY when** the user wrote `--yes`, `proceed`, `auto`, `--no-confirm`, or similar in the original request — OR Claude Code is running in auto mode (see below).
+**Skip the explicit-wait ONLY when** the user said "go", "proceed", "auto" or similar in the original request (`--yes` / `--no-confirm` are not generation flags) — OR Claude Code is running in auto mode (see below).
 
 ### Auto mode — gate STILL fires, just doesn't block
 
@@ -111,7 +111,7 @@ When the segment uses the original source reference (no edit), Gate 2 doesn't ap
 
 **But:** "no reference edit" is a real choice that should be surfaced in the plan summary, not assumed. For UGC where the avatar holds / wears / interacts with a product:
 - **Reference-edit pre-stage** = the avatar+product composition is rendered as one image first (Sunburst), then fed as a single `@Image1` to Seedance 2.5. Higher cost (~12-24cr extra), but the agent + user both see the composition before paying for the 12s video; lower drift mid-render.
-- **Direct multi-ref** = avatar + product passed as separate `--reference-image` flags (Seedance 2.5 takes up to 4), Seedance composes the interaction during generation. Cheaper, but the composition is unseen until the video lands; if Seedance doesn't have the avatar holding the product naturally, the segment is wasted.
+- **Direct multi-ref** = avatar + product passed as separate `--reference-image` flags (Seedance 2.5 takes up to the registry's `maxReferenceImages`, 30 as of 2026-10-26), Seedance composes the interaction during generation. Cheaper, but the composition is unseen until the video lands; if Seedance doesn't have the avatar holding the product naturally, the segment is wasted.
 
 Neither is universally "right". For first-time UGC with a new avatar and a new product, reference-edit pre-stage is the safer default; for repeat work where the avatar's identity is known to render cleanly, direct multi-ref is fine. **State which path you're taking in the plan summary** so the user can flip it before generation.
 
@@ -152,7 +152,7 @@ options:
   2. label: "Seedance 2.0 R2V"
      description: "Cheaper at 1080p (~300cr/12s), 4K option, up to 9 reference images. 15s cap per segment."
   3. label: "Kling 3 Standard"
-     description: "Cheapest path for non-spoken b-roll. 3/5/10/15s, single --image, no reference grammar or voice lock. ~95cr/10s."
+     description: "Only if the user asked for Kling (never offered on the agent's own initiative). 3/5/10/15s, single --image, no reference grammar or voice lock. ~95cr/10s."
 ```
 
 Sora 2 is retired (2026-09-23) — never offer it. If the user names Sora, say so and use Seedance 2.5; mention Flux 3 (`../models/flux-3.md`) as an option they can pick.

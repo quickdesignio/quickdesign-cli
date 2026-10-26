@@ -9,7 +9,7 @@ This is **the** method for talking-avatar UGC video production. Use it for any s
 
 **Default model: `seedance-2.5`** (Seedance 2.5 reference-to-video). Best-fit for this pipeline because it supports all four primitives this method depends on:
 
-1. Reference label syntax (`@Image1`…`@Image4`) — anchors identity + setting consistency without verbose verbatim descriptions. Max **4** reference images per call.
+1. Reference label syntax (`@Image1`…`@ImageN`) — anchors identity + setting consistency without verbose verbatim descriptions. Up to the registry's `maxReferenceImages` per call (30 as of 2026-10-26; check `quickdesign video models`); pass only the informative angles.
 2. Audio reference (`--reference-audio`, up to 3) — locks voice character across multi-segment outputs without TTS chains
 3. Discrete duration grid `5 / 8 / 10 / 12 / 15 / 20 / 25 / 30` s — **one segment holds up to 30s** (~60 words @ 2 wps), so most ads need only one call and no continuity step
 4. Reasonable price for iteration at the default **720p** (28 cr/s → 12s = 336cr, 30s = 840cr). 1080p is 70 cr/s (**2.5× the cost**) — only on explicit request.
@@ -26,7 +26,7 @@ quickdesign video models | jq '.data[] | select(.slug | startswith("seedance")) 
 
 If a newer Seedance generation than `seedance-2.5` is in the list, it is the default (cardinal rule #0): use it and re-check its durations. If `seedance-2.5` is gone and nothing newer replaced it, ask the user which model to use before generating; the rest of this pipeline still applies.
 
-**Length is NOT a reason to switch models or modes.** A short single-shot script does not justify dropping to `seedance-2.0-i2v` or to 2.5's first-frame mode (`--image`). Passing one `--reference-image` is functionally identical from the user's perspective, and it preserves every primitive this pipeline depends on (`@Image1`, `--reference-audio`, multi-`--reference-image`). `--image` and `--reference-*` are mutually exclusive on 2.5 — never combine them.
+**Length is NOT a reason to switch models or modes.** A short single-shot script does not justify dropping to `seedance-2.0-i2v` or to 2.5's first-frame mode (`--image`). Passing one `--reference-image` is functionally identical from the user's perspective, and it preserves every primitive this pipeline depends on (`@Image1`, `--reference-audio`, multi-`--reference-image`). Don't pass `--image` with `--reference-*` on 2.5: the image silently becomes one more reference.
 
 **Other models — only when the user names them** (cardinal rule #0). Never switch because a model looks cheaper or better suited; if the default can't do what was asked, say so and ask first.
 
@@ -130,7 +130,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
    Vertical 9:16 format.
    ```
 
-   `--generate-audio` is on by default. The "in the same exact setting throughout" pin handles location continuity. The two short audio/visual suppression lines stay minimal — don't enumerate ambient sounds you want. See `../references/no-music-no-subtitles.md`.
+   Native audio is on by default (only `--no-generate-audio` exists). The "in the same exact setting throughout" pin handles location continuity. The two short audio/visual suppression lines stay minimal — don't enumerate ambient sounds you want. See `../references/no-music-no-subtitles.md`.
 
    **Single-segment plans (≤30s, style a) are done here** — skip to post-processing (subtitle / upscale) if requested.
 
@@ -150,7 +150,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
    ```bash
    ffmpeg -y -i <seg1.mp4> -vn -t 15 -acodec libmp3lame -q:a 2 <seg1-audio.mp3>
    ```
-   `-t 15` keeps the reference inside the documented 2–15s audio-reference window even when Seg 1 is a 20–30s segment; 10–15s of clean speech is plenty to lock the voice. Mandatory whenever there's more than one segment. Single-segment videos skip this step.
+   `-t 15` keeps the reference short even when Seg 1 is a 20–30s segment (2.5 accepts 2–30s per reference audio; `-t 15` is a safe cap); 10–15s of clean speech is plenty to lock the voice. Mandatory whenever there's more than one segment. Single-segment videos skip this step.
 
 6. **Generate Segments 2..N in PARALLEL**, each with `--reference-audio` set to seg1-audio.mp3:
    ```bash
@@ -185,7 +185,7 @@ The rest of this doc (segment planning, voice continuity, concat) is model-agnos
 
 - Don't propose any TTS + voice-clone + lipsync chain — retired in this skill. Use `--reference-audio` instead.
 - **Don't omit `--model seedance-2.5`.** The CLI's implicit default is `seedance-2.0-r2v` — you'd silently get the old model and its 15s cap.
-- **Don't combine `--image` with `--reference-*` on 2.5** — first-frame mode and reference mode are mutually exclusive. For UGC always use reference mode.
+- **Don't pass `--image` with `--reference-*` on 2.5** — the image silently becomes one more reference. For UGC always use reference mode.
 - **Don't run 2.5 with no image and no reference on CLI ≤ 0.10.0.** There, prompt-only 2.5 is routed to a legacy text-to-video model while billed at 2.5 rates (fixed in 0.11.0). On an older CLI, give it at least one `--reference-image`, or ask the user to update the CLI.
 - **Don't pass more `--reference-image` than the registry's `maxReferenceImages` for 2.5.** If the shot truly needs more anchors, merge them into one reference edit, or ask the user about `seedance-2.0-r2v`.
 - **Don't skip the `--reference-audio` step on multi-segment videos.** It's not optional — Seedance picks a different voice per call without it; cuts sound like 2-3 different people.

@@ -1,7 +1,7 @@
 ---
 slug: seedance-2.0-i2v
 category: video_generate
-provider: fal | kie
+provider: kie
 status: niche
 description: Seedance 2.0 Image-to-Video. Niche model, almost never the right pick for UGC. The default is `seedance-2.5` (reference mode) for every video job. This card exists so the agent recognizes when (rarely) i2v is the right call and can document why.
 ---

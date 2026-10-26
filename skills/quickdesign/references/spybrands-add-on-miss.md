@@ -1,9 +1,11 @@
 ---
 name: When `spy brands --search` returns 0 — research and add the brand on demand
-description: When a user asks for a brand's ads / DNA / inspo and the search comes back empty, don't dead-end. Confirm the user wants to add it via AskUserQuestion, resolve the brand's Facebook page URL (homepage scrape → web search → ask), then run `quickdesign spy add <fb-input>` to register it. The BFF inserts the row, LLM-categorizes it, and triggers an initial Meta Ad Library scrape (~10s) in one call. Don't auto-add — paid endpoint with no rate limit, always gate via AskUserQuestion.
+description: When a user asks for a brand's ads / DNA / inspo and the search comes back empty, don't dead-end. Confirm the user wants to add it via AskUserQuestion, resolve the brand's Facebook page URL (homepage scrape → web search → ask), then run `quickdesign spy add <fb-input>` to register it. `spy add` is ADMIN-ONLY (other accounts get 403) and returns at once; the BFF inserts the row, an LLM picks the category, and the first ads load in the background within a few minutes. Don't auto-add — it creates a public library row, always gate via AskUserQuestion.
 ---
 
-The Spy Brands library is curated, not exhaustive. When a user asks for ads from a brand that isn't indexed yet, `quickdesign spy brands --search "<X>"` returns `[]`. Before v0.6.0 this was a dead-end. Now there's an add path — but use it carefully: it's auth-only with no rate limit, and a misadded brand needs manual cleanup until `spy remove` ships.
+The Spy Brands library is curated, not exhaustive. When a user asks for ads from a brand that isn't indexed yet, `quickdesign spy brands --search "<X>"` returns `[]`. Before v0.6.0 this was a dead-end. Now there's an add path — but it is **admin-only** (the route requires the caller's id to be in the server's `ADMIN_USER_IDS`; anyone else gets 403 "Admin privileges required"), and a misadded brand needs manual cleanup until `spy remove` ships.
+
+**On a 403, tell the user this needs a QuickDesign admin and stop; don't retry or work around it.** Non-admins use the app's "Request a brand" (`POST /api/spy-brands/request-brand`); the CLI and MCP have no command for it, so point the user to the app.
 
 ## When this rule fires
 
@@ -37,8 +39,8 @@ Never auto-add. Surface the choice:
 ```
 Brand X isn't in the Spy Brands library yet. How should we proceed?
 
-  (a) Add it now — research the brand's Facebook page, register, scrape
-      the first batch of ads (~10s). Recommended.
+  (a) Add it now — research the brand's Facebook page, register; the first ads
+      load in the background within a few minutes. Recommended.
   (b) Try a different spelling — re-search with variants.
   (c) Skip — pick a different brand or abort.
 ```
@@ -87,11 +89,12 @@ The BFF will:
 1. Resolve `<facebook-input>` to a numeric page ID (handles slug, URL, ad-library URL).
 2. Dedup-check by `facebook_page_id`. Returns 409 with the existing `brandId` if already indexed (different name / spelling than what the user asked for).
 3. Fetch the canonical page name from a 1-ad probe.
-4. Ask Claude Opus 4.6 to pick the most specific category from the 20 seeded labels (or use `--category <slug-or-uuid>` to override).
+4. Have an LLM pick the most specific category from the seeded labels (or use `--category <slug-or-uuid>` to override).
 5. Generate kebab-case slug.
 6. Insert the row with `idx=9999` (newest-first sort).
-7. Run `fetchEnrichAndSaveBrandAds()` inline — Meta API + Playwright fallback, enriches with creative previews, upserts ads. **This is what makes the call ~10s.**
-8. Return `{ success, data: brandRow, suggestedCategory }` plus initial `ad_count`.
+7. Start the first ad scrape **in the background** and return immediately with `{ success, data: brandRow, ads_fetching: true, suggestedCategory }` and `ad_count: 0`. The first ads arrive within a few minutes; poll `quickdesign spy brand-ads <id>`. A manual refresh while that first scrape runs answers 409.
+
+Flags: `--name` (REQUIRED when the brand has no active ads, otherwise the server can't resolve a name), `--website`, `--instagram`, `--category`. On 409 (already indexed) the CLI prints `{success:false, alreadyExists:true, brandId}` to stdout and exits 0.
 
 ### Step 4 — verify identity before continuing
 
@@ -99,18 +102,11 @@ The BFF doesn't validate that the FB page actually belongs to the brand the user
 
 ```
 ✓ Registered "<page name>" (id=<uuid>, slug=<slug>, category=<llm-pick>)
-   First ads:
-   - "<ad 1 title>"
-   - "<ad 2 title>"
 ```
 
-If either the page name or the first ads obviously don't match what the user wanted, flag it immediately. There's no `spy remove` yet — misadds need manual cleanup via Supabase SQL Editor. The user should know now, not three operations later.
+Then, a few minutes later, `quickdesign spy brand-ads <id>` shows the first ads. If either the page name or the first ads obviously don't match what the user wanted, flag it immediately. There's no `spy remove` yet — misadds need manual cleanup via Supabase SQL Editor. The user should know now, not three operations later.
 
-**Special case — `ad_count: 0` on a successful add:** Two distinct causes:
-1. **Meta API genuinely has no active ads for this brand.** The brand legitimately doesn't run paid Meta ads (common for premium / editorial brands like Aimé Leon Dore). Brand row is fine; nothing to scrape.
-2. **Initial scrape silently failed or timed out.** The BFF's `fetchEnrichAndSaveBrandAds()` call inside add can return empty even when ads exist — most often a 504 on the Playwright fallback path.
-
-To distinguish: open `https://www.facebook.com/ads/library/?active_status=active&view_all_page_id=<page_id>` in a browser. If you see ads there but `ad_count: 0` was returned, it's case 2 — partial failure, the brand row is otherwise correct. There's no `quickdesign spy refresh-ads` subcommand yet to retry; flag this for the user as a known follow-up. If the Ad Library page itself is empty, it's case 1 — accept and move on.
+**`ad_count: 0` right after an add is normal.** The call returns before the scrape runs (`ads_fetching: true`), so wait a few minutes and poll `quickdesign spy brand-ads <id>`. If it is still empty after that, check `https://www.facebook.com/ads/library/?active_status=active&view_all_page_id=<page_id>` in a browser: empty there means the brand runs no active Meta ads (common for premium / editorial brands). Don't try a manual refresh while the first scrape is running (409).
 
 ### Step 5 — continue with the original task
 
@@ -118,24 +114,24 @@ To distinguish: open `https://www.facebook.com/ads/library/?active_status=active
 quickdesign spy brand-ads <new-id> --status active --sort most_impressions --human
 ```
 
-…or `spy best-ads`, brand DNA scrape, etc. — whatever the user originally asked for.
+…or `spy best-ads`, brand DNA scrape, etc. — whatever the user originally asked for (once the first ads have loaded).
 
 ## What NOT to do
 
-- ❌ **Auto-add silently.** Always `AskUserQuestion` first. Cardinal rule #5 (confirmation gates) applies even though `spy add` doesn't burn user-visible credits — it does hit Meta Ad Library and creates a public DB row that other users will see in `spy brands` lists.
+- ❌ **Auto-add silently.** Always `AskUserQuestion` first. Cardinal rule #5 (confirmation gates) applies even though `spy add` doesn't burn user-visible credits — it triggers a Meta Ad Library scrape and creates a public DB row that other users will see in `spy brands` lists.
 - ❌ **Loop the FB-resolve step indefinitely.** If strategies (a) (b) (c) all fail, accept that the brand can't be added in this turn. Tell the user, suggest they grab the FB URL manually.
-- ❌ **Force-add when 409 fires.** The dedup means the brand already exists under a different name. The CLI surfaces the existing `brandId` in stderr — short-circuit to that ID instead of nagging the user.
+- ❌ **Force-add when 409 fires.** The dedup means the brand already exists under a different name. The CLI prints the existing `brandId` (stdout JSON `alreadyExists`, and a stderr line) — short-circuit to that ID instead of nagging the user.
 - ❌ **Add multiple brands in one turn without re-asking.** If the user's request implicitly involves N brands ("compare X, Y, Z's ads"), surface ALL the misses in one `AskUserQuestion` with a multi-select, not N separate prompts.
 
 ## Cost / latency expectations
 
 Set the user expectation in the plan summary BEFORE running `spy add`:
 
-> **Step:** Register `<brand>` in Spy Brands → fetch first batch of ads.
+> **Step:** Register `<brand>` in Spy Brands (admin-only) → first ads load in the background.
 > **Cost:** 0 credits (server-side Meta API call).
-> **Latency:** ~10s (Meta Ad Library scrape blocks the response).
+> **Latency:** the call returns at once; the first ads show up within a few minutes.
 
-The CLI emits a one-line stderr notice during the wait so the user sees the "fetching first ads" message even in auto mode.
+The CLI emits a one-line stderr notice so the user sees the "first ads load in the background" message even in auto mode.
 
 ## Cleanup of misadds
 

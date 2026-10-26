@@ -200,7 +200,7 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `status <provider> <jobId>` | One-shot status check |
 | `wait <provider> <jobId> [--timeout] [-o path]` | Resume polling on a job started earlier (default timeout 30 min) and optionally download |
 | `history <provider> [--limit] [--status]` | List jobs for a provider |
-| `upscale --video <url> --provider <topaz\|bytedance> [--factor] [--wait] [-o path]` | Kick off a Topaz/ByteDance video upscale |
+| `upscale --video <public url> --duration-seconds <n> [--provider <topaz\|bytedance>] [--factor] [--wait] [-o path]` | Kick off a Topaz/ByteDance video upscale (`--duration-seconds` is required; upload a local file first with `design create`) |
 | `upscale-status <jobId>` | One-shot status check |
 | `upscale-wait <jobId> [--timeout] [-o path]` | Resume polling on an upscale job |
 | `upscale-history [--limit]` | List upscale jobs |
