@@ -16,7 +16,7 @@ description: GPT Image 2.5 Sunburst (image-to-image, via kie.ai). Default for im
 
 Use something else when:
 - **The deliverable is 4:5 or 5:4** (Meta feed). Sunburst doesn't support those ratios, so use `nano-banana-2-1` (or `nano-banana-pro` for higher fidelity). See `./nano-banana-2.md`.
-- **There's no reference image at all** (pure text-to-image). The i2i model returns a 400. Use `nano-banana-2-1` (it switches to `nano-banana-2-1-t2i` by itself, 2 / 3 / 4 cr), or `gpt-image-2-t2i` / `gpt-image-2-5-sunburst-t2i` when the user wants the GPT Image look.
+- **There's no reference image at all** (pure text-to-image). The i2i model returns a 400. Use `nano-banana-2-1` (it switches to `nano-banana-2-1-t2i` by itself, 2 / 3 / 4 cr), or `gpt-image-2-t2i` when the user wants the GPT Image look.
 - **You're iterating on cheap drafts in bulk**. `nano-banana-2-1` at 1K (2 cr) or 2K (3 cr) costs a fraction.
 
 ## Hard facts (live)

@@ -32,9 +32,9 @@ This is the canonical flow. The agent should be able to walk a user through it f
 2. Click **Add custom connector**.
 3. Paste the URL: `https://app.quickdesign.io/api/mcp`
 4. Leave authentication as **OAuth** (default) — the connector auto-discovers our auth via the `/.well-known/oauth-authorization-server` endpoint we serve.
-5. Click **Add**. claude.ai opens a popup to `my.quickdesign.io/mcp/authorize` showing the OAuth consent screen.
+5. Click **Add**. claude.ai opens a popup to `app.quickdesign.io/mcp/authorize` showing the OAuth consent screen.
 6. If not already logged in, the user logs in to QuickDesign with their normal email/password (or magic link).
-7. Consent screen lists the requested scopes ("Search Spy Brands library, view ads, look up models / costs, list your designs") and asks Allow / Deny.
+7. The consent screen shows three lines: "Search your Spy Brands library, view ads, and read brand details." / "Look up AI model availability and calculate generation costs." / "List and read your saved designs (Phase 2 — not active yet)." It then asks Allow / Deny. It does not mention generation, although the connector can spend the account's credits: tell the user.
 8. After **Allow**, claude.ai gets a token in the background and the connector goes green.
 9. From any new chat, `quickdesign_*` tools are now available.
 
@@ -44,11 +44,11 @@ If anything fails mid-flow, the user should:
 
 ## What tools are available via MCP
 
-The MCP server exposes the full generation surface now, not just read tools (checked against the BFF tool registry, 2026-10-16):
+The MCP server exposes the full generation surface now, not just read tools (checked against the BFF tool registry, 2026-10-26):
 
 | Group | MCP tools | Cost |
 |---|---|---|
-| Spy Brands | `quickdesign_spy_search_brands`, `_spy_get_brand`, `_spy_get_brand_ads`, `_spy_best_ads`, `_spy_trending_ads`, `_spy_add_brand` | 0 |
+| Spy Brands | `quickdesign_spy_search_brands`, `_spy_get_brand`, `_spy_get_brand_ads`, `_spy_best_ads`, `_spy_trending_ads`, `_spy_add_brand` (admin-only; non-admins get 403, see `./spybrands-add-on-miss.md`) | 0 |
 | Models / cost | `quickdesign_models`, `quickdesign_calculate_cost` | 0 |
 | Designs / templates | `quickdesign_design_list`, `quickdesign_template_list`, `quickdesign_template_filters` | 0 |
 | Collections / tags | `quickdesign_collection_list`, `_collection_items`, `_collection_add` (`new_collection_name` creates the collection, or reuses the caller's own one of that name), `quickdesign_tag_list`, `_tag_apply`, `_tag_update`, `_tag_delete` | 0 |
@@ -57,6 +57,7 @@ The MCP server exposes the full generation surface now, not just read tools (che
 | Image generation | `quickdesign_image_generate`, `_image_status`, `_image_result`, `_image_history` | paid |
 | Video generation | `quickdesign_video_generate`, `_video_status`, `_video_history`, `_video_subtitle`, `_video_upscale`, `quickdesign_replicate_video`, `quickdesign_url_to_video` | paid |
 | Audio and video editing | see the next section | mixed |
+| Live editor (the user's open QuickDesign video editor) | `quickdesign_editor_status` → `_editor_tools` → `_editor_call` (e.g. `view_frames`, `detect_silence`, `transcribe_clip`, `cut_ranges`) → `_editor_add_media` / `_editor_save`. They need the server's live editing switched on and the user's QuickDesign video editor open; each call is one undo step. CLI equivalent: `quickdesign editor`, see `./video-editor.md` | 0 |
 | Ad Creator | `quickdesign_ad_creator_concepts`, `_ad_creator_generate`, `_ad_creator_advantage_plus`, `_ad_creator_status` | paid |
 | Flows | `quickdesign_flow_list`, `_flow_get`, `_flow_generate`, `_flow_edit`, `_flow_duplicate`, `_flow_delete` | paid when a flow runs |
 | Deploy Meta | `quickdesign_meta_accounts`, `_meta_publish`, `_meta_publish_status`, `_meta_campaigns`, `_meta_campaign_status`, `_meta_insights`, `_meta_report`, `_meta_radar`, `_meta_settings`, `_meta_comments`, `_meta_comments_sync`, `_meta_comment_action`, `_meta_comment_draft` | 0 credits (activating a campaign spends ad budget — see `./deploy-meta.md`) |
@@ -71,6 +72,7 @@ These tools take QuickDesign-hosted media (a `design_id` or a library URL) and s
 | Tool | What it does | Cost |
 |---|---|---|
 | `quickdesign_video_watch`, `_video_frame`, `_video_transcribe`, `quickdesign_audio_extract` | Look at frames with timestamps, grab one frame, word-level transcript, pull the sound track out as MP3 | 0 |
+| `quickdesign_video_compose` | Join 1-12 clips (each a source video plus the part of it to use) one after another into a new design, optionally with an audio track laid over it from 0 s; clips are scaled to the first clip's frame size | 4 cr per started second of the result |
 | `quickdesign_video_trim`, `quickdesign_video_edit` | Cut one range; or cut / reorder / join clips and stills, speed, reformat (9:16 / 4:5 / 1:1 / 16:9), text, and audio tracks with roles (`voice`, `music`, `sfx`) | trim 0; edit 4 cr per started second of the result |
 | `quickdesign_voice_list`, `quickdesign_speech_generate`, `quickdesign_video_voiceover` | Voices by family (ElevenLabs stock voices, MiniMax stock + the user's cloned voices); text → speech; re-voice a video in one step | ElevenLabs v4 5 cr, v3 6 cr, MiniMax 6 cr per 1000 characters |
 | `quickdesign_audio_isolate` | Speech alone, without music / noise (ElevenLabs), ≤ 300 s | 0 |
@@ -83,7 +85,7 @@ Pick by intent: the same person in another language → `video_translate`; new w
 
 ### Model defaults on MCP — follow the registry's `isLatest`
 
-A tool called without `model` runs the model its category flags `isLatest` in `quickdesign_models` (as of 2026-10-16: video `seedance-2.5`, image `nano-banana-2-1`, music `suno-v6`, speech `elevenlabs-tts-v4`); without a flag it keeps its old default. Still pass the model when the skill names one:
+A tool called without `model` runs the model its category flags `isLatest` in `quickdesign_models` (as of 2026-10-26: video `seedance-2.5`, image `nano-banana-2-1`, music `suno-v6`, speech `elevenlabs-tts-v4`); without a flag it keeps its old default. Still pass the model when the skill names one:
 
 - `quickdesign_video_generate`: pass `model: "seedance-2.5"` (`../models/seedance-2.5.md`). A legacy `provider` without `model` still picks that provider's old default.
 - `quickdesign_image_generate`: the model-less default is `nano-banana-2-1`, but the skill's edit default is Sunburst, so pass `model: "gpt-image-2-5-sunburst-i2i"` plus `reference_image_urls` (`../models/gpt-image-2-5-sunburst-i2i.md`). Use `nano-banana-2-1` for 4:5 deliverables and prompt-only images.

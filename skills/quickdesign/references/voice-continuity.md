@@ -1,6 +1,6 @@
 ---
 name: Seedance --reference-audio for voice continuity — never TTS+lipsync chain
-description: Seedance 2.5 accepts up to 3 `--reference-audio` clips (mp3/wav, keep each 2-15s, ≤15MB) as a reference for the voice character it generates. Only needed when a video has more than one segment — a ≤30s Seedance 2.5 video is one segment and has one voice by construction. For multi-segment videos, extract segment 1's native audio and pass it as `--reference-audio` to subsequent segments. Do NOT orchestrate any TTS + voice-clone + lipsync pipeline for this — it's the wrong tool, costs ~2x more, and lipsync `sync_mode=cut_off` shrinks segments unpredictably.
+description: Seedance 2.5 accepts up to 3 `--reference-audio` clips (mp3/wav, 2–30s each, ≤15MB; a 5–15s clip is enough for a voice) as a reference for the voice character it generates. Only needed when a video has more than one segment — a ≤30s Seedance 2.5 video is one segment and has one voice by construction. For multi-segment videos, extract segment 1's native audio and pass it as `--reference-audio` to subsequent segments. Do NOT orchestrate any TTS + voice-clone + lipsync pipeline for this — it's the wrong tool, costs ~2x more, and lipsync `sync_mode=cut_off` shrinks segments unpredictably.
 ---
 
 When a multi-segment UGC video needs **voice continuity** across segments (so all speakers sound like one person), use Seedance's native `--reference-audio` parameter (`audio_urls` on the wire) — not a TTS+lipsync chain.
@@ -9,13 +9,13 @@ On Seedance 2.5 this only comes up above 30s of speech, or when the arc needs a 
 
 ## The right way
 
-1. **Segment 1**: standard Seedance 2.5 (`--model seedance-2.5`) with native audio. Script in prompt as quoted speech, `--generate-audio` on (default). This establishes "the voice".
+1. **Segment 1**: standard Seedance 2.5 (`--model seedance-2.5`) with native audio. Script in prompt as quoted speech, native audio on (the default). This establishes "the voice".
 
 2. **Audio extraction**:
    ```bash
    ffmpeg -y -i seg1.mp4 -vn -t 15 -acodec libmp3lame -q:a 2 seg1-audio.mp3
    ```
-   `-t 15` keeps the clip inside the 2-15s reference window when Seg 1 is a 20-30s segment; 10-15s of clean speech is enough to lock the voice. Auto-uploads via CLI `--reference-audio` if local path.
+   `-t 15` keeps the clip short when Seg 1 is a 20-30s segment (2.5 accepts 2–30s per reference audio); 10-15s of clean speech is enough to lock the voice. Auto-uploads via CLI `--reference-audio` if local path.
 
 3. **Segments 2..N**: pass the extracted audio as voice reference. Each segment's prompt has its own quoted speech; Seedance generates native audio for that segment but matches the voice character of the reference:
    ```bash
@@ -48,11 +48,11 @@ Problems:
 - Plan template for multi-segment UGC:
   > "Voice-locked multi-segment: Seg 1 native audio → extract → pass to Segs 2..N as `--reference-audio` (Seedance 2.5 native voice matching). Cost ≈ N× Seedance 2.5 segments (no extra orchestration)."
 - Reserve TTS + voice-clone + lipsync for cases where the user explicitly wants a SCRIPTED voice (e.g. dub a custom voice over Seedance video), not for character voice continuity.
-- Constraints: `--reference-audio` repeatable, max 3 audio refs per call on `seedance-2.5` (the registry lists 1 for the `seedance-2.0-r2v` fallback), mp3/wav, keep each 2-15s, ≤15MB.
+- Constraints: `--reference-audio` repeatable, max 3 audio refs per call on `seedance-2.5` (the registry lists 1 for the `seedance-2.0-r2v` fallback), mp3/wav, 2–30s each, ≤15MB (5–15s is enough for a voice).
 - Flux 3, Gemini Omni and the CLI's Kling path have no audio-reference primitive — multi-segment work on them can't lock the voice. (Sora 2 is retired.)
 
 ## What `audio_urls` does and does not do
 
 - **Does**: lock the voice character (timbre, pacing, accent feel) across segments.
 - **Does not**: dictate WHAT is said in each segment. Each segment's prompt determines the words via quoted speech.
-- **Does not**: replace the need for `--generate-audio` to be on. The reference is a character anchor; the segment still generates its own dialogue audio.
+- **Does not**: replace the need for native audio to be on (the default; only `--no-generate-audio` exists). The reference is a character anchor; the segment still generates its own dialogue audio.
