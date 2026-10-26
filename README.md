@@ -308,6 +308,20 @@ Needs, in the app: Meta connected, the Pages turned on in the planner, and an Ul
 | `feed <profile-id>` | An Instagram account's last 30 posts |
 | `caption (--improve <text> \| --write --image …)` | AI caption text (nothing saved) |
 
+### `editor` — video editor (live)
+
+Edit the video the user has open in the QuickDesign video editor, live (CLI 0.23.0+). **The video editor must be open in QuickDesign**, signed in as the same account; otherwise every command prints a hint and exits 1. Needs a server with live editing on.
+
+| Command | Notes |
+| --- | --- |
+| `editor status [--json]` | The open editor tabs: project, length, tracks, clips |
+| `editor tools [--tab <id>] [--json]` | The tab's editing tools, one line each (`--json` has the input schemas) |
+| `editor call <tool> [args] [--args-file <path>] [--tab <id>] [--out <path>] [--json]` | Runs one tool. `args` is a JSON object (`--args-file -` reads stdin). Images (`view_frames`, `inspect_preview`) are written to files and `image saved: <path>` is printed |
+| `editor add-media <design-id> [--tab <id>]` | Imports a design's media into the media bin; prints the mediaId |
+| `editor save [--title <t>] [--collection <id>] [--tab <id>]` | Renders and saves the project to your library (returns at once; `editor status` shows when it is saved) |
+
+Each `editor call` is one undo step in the user's editor.
+
 ### `cost` — credit pricing
 
 | Command | Notes |

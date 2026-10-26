@@ -22,6 +22,7 @@ import { registerTemplateCommands } from './commands/template.js';
 import { registerMetaCommands } from './commands/meta.js';
 import { registerSocialCommands } from './commands/social.js';
 import { registerInitCommand } from './commands/init.js';
+import { registerEditorCommands } from './commands/editor.js';
 import { registerCostCommand } from './commands/cost.js';
 import pkg from '../package.json' with { type: 'json' };
 
@@ -129,6 +130,8 @@ Examples
   $ quickdesign design list --limit 10
   $ quickdesign tag add 85725 85330 --tag winner
   $ quickdesign design list --tag winner --tag yüzük
+  $ quickdesign editor status
+  $ quickdesign editor call cut_ranges --args-file ranges.json
   $ quickdesign meta accounts --human
   $ quickdesign meta radar --account act_123 --compute --human
   $ quickdesign meta publish --account act_123 --page 456 --name "Summer Sale" \\
@@ -157,6 +160,7 @@ registerMetaCommands(program);
 registerSocialCommands(program);
 registerInitCommand(program);
 registerCostCommand(program);
+registerEditorCommands(program);
 
 checkSkillStaleness((pkg as { version: string }).version ?? '0.0.0');
 checkDuplicateSkills();
