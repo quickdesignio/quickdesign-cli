@@ -17,7 +17,7 @@ Don't use as a substitute for generating at the right resolution in the first pl
 ## Hard facts (live)
 
 ```bash
-quickdesign cost topaz-video-upscale -d 24 -r 4k     # estimate only
+quickdesign cost topaz-video-upscale -d 24 -r 1080p  # estimate; CLI jobs bill at the 1080p tier
 quickdesign video models | jq '.data[] | select(.slug=="topaz-video-upscale")'
 ```
 
