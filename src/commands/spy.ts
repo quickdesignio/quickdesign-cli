@@ -173,9 +173,10 @@ export function registerSpyCommands(program: Command): void {
   spy
     .command('add')
     .description(
-      'Register a brand into the Spy Brands library by Facebook page URL or ID. ' +
-      'BFF resolves the page, dedup-checks, LLM-suggests a category, generates a ' +
-      'slug, inserts the row, and triggers an initial Meta Ad Library scrape (~10s). ' +
+      'Register a brand into the Spy Brands library by Facebook page URL or ID (admin-only: ' +
+      'other accounts get 403). BFF resolves the page, dedup-checks, LLM-suggests a ' +
+      'category, generates a slug and inserts the row; it returns at once and the first ' +
+      'ads load in the background in a few minutes (poll `spy brand-ads <id>`). ' +
       'For bulk-add scripts, use --name / --website / --instagram to pre-fill metadata ' +
       'when the Meta probe might come back empty (e.g. a brand with no active ads).',
     )
@@ -201,7 +202,7 @@ export function registerSpyCommands(program: Command): void {
     ) => {
       try {
         process.stderr.write(
-          'Registering brand and fetching first ads (~10s — Meta Ad Library scrape blocks the response)…\n',
+          'Registering brand (returns at once; first ads load in the background in a few minutes)…\n',
         );
         const res = await request<{
           success: boolean;

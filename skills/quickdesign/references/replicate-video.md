@@ -27,6 +27,7 @@ quickdesign video replicate --video ./ref.mp4 --product ./p1.jpg --product ./p2.
 ```
 
 Without `--wait`/`-o` it prints `request_id`; resume with `quickdesign video wait seedance <request_id> -o out.mp4`.
+At most 3 jobs can be in flight per user; a 429 means wait for one to finish.
 Preparation takes 1–3 min before generation starts; total is usually 3–6 min.
 
 ## Same flow elsewhere

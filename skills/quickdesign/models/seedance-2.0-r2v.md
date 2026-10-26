@@ -1,7 +1,7 @@
 ---
 slug: seedance-2.0-r2v
 category: video_generate
-provider: fal | kie
+provider: kie
 status: opt-in
 description: Seedance 2.0 Reference-to-Video. Former default. Use it only when the user asks for it, e.g. for a native 4K master (2.5 tops out at 1080p); never because it is cheaper per second. Same labeled reference grammar (@Image1 / @Audio1 / @Video1) and --reference-audio voice continuity, but a hard 15s cap per segment. It's also what the CLI silently picks when `--provider seedance` gets reference flags without `--model`.
 ---
@@ -106,7 +106,7 @@ Vertical 9:16 format.
 
 ## Cross-references
 
-- Current default (≤4 refs, up to 30s per segment) → `./seedance-2.5.md`
+- Current default (up to `maxReferenceImages` refs, up to 30s per segment) → `./seedance-2.5.md`
 - Multi-product / multi-angle reference usage → `../references/multi-reference-pattern.md`
 - Voice continuity across segments → `../references/voice-continuity.md`
 - Music + subtitle suppression (minimal directive) → `../references/no-music-no-subtitles.md`

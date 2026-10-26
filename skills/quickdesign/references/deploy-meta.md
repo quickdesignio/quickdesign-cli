@@ -7,8 +7,8 @@
 
 Every subcommand needs the user's Meta (Facebook) account connected to
 QuickDesign. If you see `No valid Meta access token found`, tell the user to
-open **app.quickdesign.io/deploy-meta** and complete the "Connect Meta" step,
-then retry. There is no CLI flow for this — it's an app-side OAuth.
+open **app.quickdesign.io/social** (the old `/deploy-meta` path redirects there) and complete the "Connect Meta" step,
+then retry. There is no CLI flow for this — it's an app-side OAuth. In the app, Deploy Meta needs a **Pro Max or Team** plan: if the user can't find the Connect Meta step, check their plan.
 
 ## Safety model — everything is created PAUSED
 
@@ -132,7 +132,7 @@ Rules for agents:
 - A background job syncs every 30 minutes; run `comments-sync` only when the user wants fresh data
   (30-120 s on busy accounts).
 - 403 "permission" errors mean the user's Meta connection predates the comment scopes → they must
-  **Reconnect** in app.quickdesign.io/deploy-meta → Account Settings.
+  **Reconnect** in app.quickdesign.io/social → Settings (Social sidebar).
 - Instagram *ad-only* media may be skipped (`skipped: ig_ad_comments_unavailable`) — Meta does not
   expose comments on some dark-post IG ads.
 

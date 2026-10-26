@@ -3,7 +3,7 @@ slug: seedance-2.5
 category: video_generate
 provider: kie
 status: primary
-description: Seedance 2.5 (ByteDance, via kie.ai). Universal default for every video job (UGC, talking avatar, promo, explainer, b-roll, fixing a shot). One segment holds up to 30s, so most ad scripts fit in a single call with no voice-continuity step. Same labeled reference grammar as 2.0 R2V (@Image1 / @Video1 / @Audio1), up to 4 reference images, 3 reference videos, 3 reference audios. Must be selected with an explicit `--model seedance-2.5`.
+description: Seedance 2.5 (ByteDance, via kie.ai). Universal default for every video job (UGC, talking avatar, promo, explainer, b-roll, fixing a shot). One segment holds up to 30s, so most ad scripts fit in a single call with no voice-continuity step. Same labeled reference grammar as 2.0 R2V (@Image1 / @Video1 / @Audio1), up to the registry's `maxReferenceImages` reference images (30 as of 2026-10-26), 3 reference videos, 3 reference audios. Must be selected with an explicit `--model seedance-2.5`.
 ---
 
 ## When to use
@@ -26,18 +26,18 @@ quickdesign video models | jq '.data[] | select(.slug=="seedance-2.5")'
 - **Resolutions**: `480p` (13 cr/s), `720p` (28 cr/s), `1080p` (70 cr/s). **No 4K.** Default to **720p**. 1080p costs 2.5× as much, so only use it when the user asks for it or the channel needs it.
   - 12s@720p = 336 cr · 15s@720p = 420 cr · 30s@720p = 840 cr · 12s@1080p = 840 cr
 - **Aspect ratios**: `9:16`, `16:9`, `1:1`, `4:3`, `3:4`, `21:9`, `adaptive` (`auto` is mapped to `adaptive`).
-- **Reference caps**: 4 images · 3 videos (each 2–30s, total ≤ 30s) · 3 audios.
-- **Reference image size**: 300–6000 px on each side. The BFF rejects anything outside that range before billing, with a message naming the file.
+- **Reference caps**: images up to the registry's `maxReferenceImages` (30 as of 2026-10-26; check `quickdesign video models`) · 3 videos (each 2–30s, total ≤ 30s) · 3 audios (each 2–30s, ≤15MB). Pass only the angles that carry information.
+- **Input fitting**: reference images outside 300–6000 px per side or a 0.39–2.5 width/height ratio are re-fitted automatically (padded or rescaled) before billing. A `--image` first frame outside that band is refused with a message naming the file. Reference videos over 30s are trimmed to 29.9s by the server.
 - **Native audio**: on by default. Pass `--no-generate-audio` for silent b-roll.
 
 ## Two modes — never mix them
 
 | Mode | Flags | Use for |
 |---|---|---|
-| **Reference** (default) | `--reference-image` (≤4), `--reference-video` (≤3), `--reference-audio` (≤3) | UGC, product + avatar + scene, voice continuity |
+| **Reference** (default) | `--reference-image` (up to `maxReferenceImages`), `--reference-video` (≤3), `--reference-audio` (≤3) | UGC, product + avatar + scene, voice continuity |
 | **First frame** | `--image <frame>` | Animating one exact still pixel-for-pixel. The aspect ratio is forced to `adaptive` (follows the image). |
 
-Frame mode and reference mode are mutually exclusive on the provider side, so don't pass `--image` together with `--reference-*`. A single `--reference-image` is still reference mode and is the right way to animate one image while keeping `@Image1` grammar.
+Don't pass `--image` with `--reference-*`: the image silently becomes one more reference (prepended), so it is no longer a first frame. A single `--reference-image` is still reference mode and is the right way to animate one image while keeping `@Image1` grammar.
 
 ## Reference grammar
 
@@ -45,7 +45,7 @@ Same as 2.0 R2V. The BFF normalizes `@image1` / `@IMG1` spellings to the canonic
 
 | Flag | Prompt label |
 |---|---|
-| `--reference-image` (repeatable, max 4) | `@Image1` … `@Image4` |
+| `--reference-image` (repeatable, up to `maxReferenceImages`) | `@Image1` … `@ImageN` |
 | `--reference-video` (repeatable, max 3) | `@Video1` … `@Video3` |
 | `--reference-audio` (repeatable, max 3) | `@Audio1` … `@Audio3` |
 
@@ -91,11 +91,12 @@ See `../references/voice-continuity.md` and `../pipelines/ugc-video.md`.
 ## Gotchas / failure modes
 
 1. **Prompt-only (no `--image`, no `--reference-*`) needs CLI ≥ 0.11.0.** CLIs up to 0.10.0 send reference-free jobs to `/start-text-to-video`, which doesn't serve 2.5. There it falls back to the legacy Seedance 1.0 text-to-video model but still bills at 2.5 rates. Check `quickdesign --version` first. On an older CLI, give 2.5 at least one reference, or ask the user to update the CLI.
-2. **More reference images than the registry allows.** Check `maxReferenceImages` in `quickdesign video models`; the cap has changed before (cards written against a cap of 4). Past the cap, merge the product angles into one reference edit first (`./gpt-image-2-5-sunburst-i2i.md`), or ask the user about `seedance-2.0-r2v`.
+2. **More reference images than the registry allows.** Check `maxReferenceImages` in `quickdesign video models`; the cap has changed before. Past the cap, merge the product angles into one reference edit first (`./gpt-image-2-5-sunburst-i2i.md`), or ask the user about `seedance-2.0-r2v`.
 3. **Auto-layered music bed and hallucinated burned subtitles.** Same as 2.0. Keep `No music score.` and `No subtitles or on-screen text.` See `../references/no-music-no-subtitles.md`. For captions, use `quickdesign video subtitle` after generation.
 4. **Camera-motion verbs cause defects.** Don't write "slowly zooms in" or "static hold". See `../references/first-frame-not-camera-motion.md`.
 5. **Fine print drops across motion.** Make sure the reference edit preserves the label or engraving legibly, and name the exact text in the prompt.
 6. **Duration outside the grid.** Stick to the discrete list. Don't send 13 or 18.
+7. **Edit/extend wording gets the prompt reclassified.** A prompt that reads like editing or extending an existing video ("edit this clip", "extend the video") can make Seedance reclassify the task and refuse it. The server retries once with adaptive geometry at no extra charge, but write prompts as fresh shots instead.
 
 ## Cross-references
 

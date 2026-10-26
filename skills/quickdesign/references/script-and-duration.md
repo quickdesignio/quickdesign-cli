@@ -3,7 +3,7 @@ name: Script preservation, gender-neutral default, duration math (Seedance 2.5 �
 description: When the user supplies a script, include it verbatim as quoted speech in the prompt — don't paraphrase. Use gender-neutral subject (`The person`) unless reference image clearly shows otherwise. Seedance 2.5 accepts the discrete durations 5, 8, 10, 12, 15, 20, 25, 30s — compute the tight fit (~2 wps) and round up to the next legal value. Up to 30s of speech is ONE segment. Cost scales linearly per second (720p 28 cr/s default), so tight picking saves real credit.
 ---
 
-When the user supplies a script (TTS-style narration text) and `--generate-audio` is on, keep the script verbatim inside the prompt as quoted speech.
+When the user supplies a script (TTS-style narration text) and native audio is on (the default), keep the script verbatim inside the prompt as quoted speech.
 
 ## Gender-neutral default pattern
 

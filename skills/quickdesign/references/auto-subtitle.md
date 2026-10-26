@@ -16,7 +16,8 @@ Add subtitles in post-production whenever the user wants:
 ## CLI usage
 
 ```bash
-# Default: TikTok-style, English, single-word karaoke highlight
+# Default preset (no --style): 5 words per line, yellow highlight, bottom. English.
+# For single-word pop add --style tiktok
 quickdesign video subtitle ./final.mp4 -o ./final-subbed.mp4 --wait
 
 # Different style + language
@@ -101,7 +102,7 @@ $0.03 per minute of source video on fal.ai → **1 credit per second** at our st
 
 ## What NOT to do
 
-- ❌ Don't let Seedance burn its own subtitles via the prompt. Always include the `No subtitles, no captions, no on-screen text overlays` line in every Seedance prompt (per `no-music-no-subtitles.md`).
+- ❌ Don't let Seedance burn its own subtitles via the prompt. Always include the `No music score. No subtitles or on-screen text.` lines in every Seedance prompt (per `no-music-no-subtitles.md`).
 - ❌ Don't subtitle each multi-segment piece individually — subtitle the final concat for continuous timing.
 - ❌ Don't set `--words-per-line 1` for `minimal` style (defeats the purpose; that's a `tiktok` style choice).
 - ❌ Don't pass a non-Google-Font name to `--font` — fal pulls from fonts.google.com only. If the user wants a custom font, fall back to a similar Google Font.

@@ -14,13 +14,13 @@ A failed tool prints its message to stderr and exits 1. Read the message and cor
 
 - `view_frames` renders up to 16 frames of the committed timeline into one labelled contact-sheet image. The CLI writes it to a file and prints `image saved: <path>`: **Read that file** to see it. Give `times` (timeline seconds), or `fromSec` / `toSec` / `count` to sample a range; call again with a narrow range to look closer. `--out <path>` chooses the file name. `inspect_preview` does the same for the current playhead frame.
 - `detect_silence` (per clip) returns silent regions in **timeline seconds**, already padded 0.1 s, ready for `cut_ranges`. `thresholdDb` (-70..-10, default -40) and `minSilenceSec` (0.1..10, default 0.5) tune it. It answers `available:false` with a reason when the clip has no sound.
-- `transcribe_clip` returns a word-level transcript with each word's start and end in **timeline seconds**, to find filler words, retakes and pauses. It can take up to 3 minutes (the CLI waits 200 s); at most 1200 words per answer, so when it is truncated call again with `fromSec = nextFromSec`. Free for the user with a daily limit: on `available:false` carry on without it.
+- `transcribe_clip` returns a word-level transcript with each word's start and end in **timeline seconds**, to find filler words, retakes and pauses. It can take up to 3 minutes (the CLI waits 200 s); at most 1200 words per answer, so when it is truncated call again with `fromSec = nextFromSec`. Free for the user with a daily limit (30 minutes a day by default): on `available:false` carry on without it. A clip that uses more than 10 minutes of source audio answers `available:false` with reason `too_long`: split the clip and transcribe the parts.
 
 Edits made in a turn are not visible to `view_frames` until they commit, so view again after a cut.
 
 ## Remove everything in ONE `cut_ranges` call
 
-`cut_ranges` removes time ranges (timeline seconds) from the whole timeline and closes the gaps, in one undoable edit. Sound, captions and titles stay in sync; plain clips are split at the range edges and text, shapes, stickers and subtitles are shortened.
+`cut_ranges` removes time ranges (timeline seconds) from the whole timeline and closes the gaps, in one undoable edit. Sound, captions and titles stay in sync; transitions the cut runs through are removed too (listed in the result); plain clips are split at the range edges and text, shapes, stickers and subtitles are shortened.
 
 - Give **every** range in a single call (max 50). They are clamped, sorted and merged, and `detect_silence` regions can be passed as they are. Several calls shift the timeline under you: later ranges then point at the wrong place.
 - `keepTrackIds` lists tracks that keep playing unchanged through the cut, such as background music: they are not cut, only trimmed to the new end.
@@ -29,7 +29,7 @@ Edits made in a turn are not visible to `view_frames` until they commit, so view
 ## Undo, locks, and what a refusal means
 
 - **Each live call is one undo step** in the user's editor (Ctrl/Cmd+Z). Mention it after a big edit.
-- **Locked tracks are never changed.** A refused `cut_ranges` (locked track with content inside or after a range, or a range edge inside a reversed, speed-ramped, freeze-frame, compound, multicam, motion or adjustment item) **changed nothing** and returns `error.retryOf`. You cannot unlock tracks: ask the user to unlock the track, or cut only after that content. Then correct the ranges or `keepTrackIds` and pass that `retryOf` value back in the args.
+- **Locked tracks are never changed.** A refused `cut_ranges` (locked track with content inside or after a range, or a range edge inside a reversed, speed-ramped, freeze-frame, compound, multicam, motion or adjustment item) **changed nothing** and returns an error with a `code` (`CUT_TRACK_LOCKED`, `CUT_UNSPLITTABLE`, …) and the offending item. You cannot unlock tracks: ask the user to unlock the track, or fix the ranges / `keepTrackIds`, then call again. Live calls never return `retryOf` (only the editor's own chat loop adds it): ignore the `retryOf` wording in the tool descriptions. The same applies to `add_transition`.
 - A call that timed out or lost the tab may still have landed: check `get_editor_state` before repeating it.
 
 ## Other tools worth knowing

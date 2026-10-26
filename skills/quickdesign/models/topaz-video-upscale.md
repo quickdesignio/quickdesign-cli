@@ -3,7 +3,7 @@ slug: topaz-video-upscale
 category: video_upscale
 provider: fal
 status: post-pipeline
-description: Topaz video upscale. Run AFTER final concat to bump 720p / 1080p generation output to 1080p / 4K. Per-second pricing with optional 60fps multiplier. Don't run upscale per-segment — generate at native target resolution, then concat, then upscale once.
+description: Topaz video upscale. Run AFTER final concat to bump 720p / 1080p generation output to 1080p / 4K. Per-second pricing (5 cr minimum) with a 60fps multiplier. Don't run upscale per-segment — generate at native target resolution, then concat, then upscale once.
 ---
 
 ## When to use
@@ -17,14 +17,14 @@ Don't use as a substitute for generating at the right resolution in the first pl
 ## Hard facts (live)
 
 ```bash
-quickdesign cost topaz-video-upscale -d 24 -r 4k
-quickdesign cost topaz-video-upscale -d 24 -r 4k --fps60
+quickdesign cost topaz-video-upscale -d 24 -r 4k     # estimate only
 quickdesign video models | jq '.data[] | select(.slug=="topaz-video-upscale")'
 ```
 
-- **Cost**: `per_second` × resolution. `720p=1cr/s`, `1080p=2cr/s`, `4k=8cr/s`.
-- **60fps multiplier**: ×2 if `--fps60`. Use ONLY if downstream playback is genuinely 60fps; most social platforms are 30fps and the bump is wasted.
-- **Sibling**: `bytedance-video-upscale` is similar with a different cost ladder + a `pro_multiplier`. Compare via `quickdesign cost --category video_upscale`.
+- **Cost**: per second of source video, with a **minimum of 5 cr**. The CLI has no `--resolution` flag and never sends an output resolution, so the server prices a Topaz job at its default tier (2 cr/s as of 2026-10-26; `fal.videoUpscale.service.ts`). `--target-fps 60` doubles the charge. `quickdesign cost …` is an estimate; the real charge comes back as `token_cost` in the start response (omit `--wait` / `-o` to see it).
+- **60fps multiplier**: use `--target-fps 60` ONLY if downstream playback is genuinely 60fps; most social platforms are 30fps and the bump is wasted.
+- **Sibling**: `--provider bytedance` has a different cost ladder (`--target-resolution`, no `--factor`). Compare via `quickdesign cost --category video_upscale`.
+- **Inputs**: `--video` takes a public URL (the CLI does not upload for you) and `--duration-seconds` is REQUIRED (the server answers 400 without it). `--factor 1-4` is Topaz only.
 
 ## Pipeline placement
 
@@ -38,10 +38,13 @@ quickdesign video generate ... -o seg2.mp4
 # concat (mux-only, no quality loss)
 ffmpeg -f concat -safe 0 -i concat.txt -c copy final.mp4
 
-# upscale ONCE
-quickdesign video upscale ./final.mp4 \
-  --provider topaz --resolution 4k -o ./final-4k.mp4 --wait
+# upscale ONCE: the upscaler needs a public URL, so save the file as a design first
+quickdesign design create ./final.mp4 --title "Final"     # prints the design row; its `video_url` is the public URL
+quickdesign video upscale --video <video_url> --provider topaz --factor 2 \
+  --duration-seconds 24 -o ./final-up.mp4 --wait     # 24 = the video length in seconds (ffprobe)
 ```
+
+If a wait times out the job keeps running: resume with `quickdesign video upscale-wait <jobId> -o …`, or check it with `video upscale-status <jobId>`.
 
 Per-segment upscaling wastes ~Ncr × duration and can introduce inter-segment quality mismatches.
 

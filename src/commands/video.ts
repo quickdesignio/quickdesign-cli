@@ -180,7 +180,7 @@ export function registerVideoCommands(program: Command): void {
     .requiredOption('-p, --prompt <text>', 'Prompt')
     .option('--image <url|path>', 'Source image URL or local path (image-to-video modes; auto-uploaded)')
     .option('--audio <url|path>', 'Audio URL or local path (ugc only, required; auto-uploaded)')
-    .option('--reference-image <url|path>', 'Reference image URL or local path (Seedance 2.5 max 4 / 2.0 r2v max 9; repeatable; auto-uploaded)', collect, [] as string[])
+    .option('--reference-image <url|path>', 'Reference image URL or local path (Seedance 2.5 max 30 / 2.0 r2v max 9; see `video models`; repeatable; auto-uploaded)', collect, [] as string[])
     .option('--reference-video <url|path>', 'Reference video URL or local path (Seedance 2.5 / 2.0 r2v; repeatable max 3; auto-uploaded)', collect, [] as string[])
     .option('--reference-audio <url|path>', 'Reference audio URL or local path (Seedance voice continuity; repeatable, mp3/wav ≤15MB; auto-uploaded)', collect, [] as string[])
     .option('--model <slug>', 'Model slug, e.g. seedance-2.5, flux-3-t2v, gemini-omni-video, kling-3-pro. Without it seedance falls back to the 2.0 models (see `video models`)')
