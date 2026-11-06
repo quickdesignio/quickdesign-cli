@@ -4,7 +4,8 @@
  * Wraps four BFF provider families:
  *   sora2    → /api/async-sora2-video/*      (retired upstream 2026-09-23 —
  *                                             status/history/wait only)
- *   kling    → /api/async-kling-video/*
+ *   kling    → alias of seedance with model kling-4.0 (kie.ai); the fal
+ *              /api/async-kling-video/* models are retired
  *   seedance → /api/async-seedance-video/*   (Seedance 2.5 / 2.0, and every
  *                                             other family the BFF routes
  *                                             there: flux-3-*, gemini-omni-video)
@@ -53,8 +54,10 @@ function providerRoutes(provider: Provider): {
         history: '/api/async-sora2-video/history',
       };
     case 'kling':
+      // Status/history for jobs started on the retired fal endpoint. New
+      // Kling generations go through the Seedance-family routes (see
+      // effectiveVideoProvider).
       return {
-        i2v: '/api/async-kling-video/start-image-to-video',
         status: '/api/async-kling-video/status',
         history: '/api/async-kling-video/history',
       };
@@ -147,6 +150,19 @@ export function buildSeedanceRequest(opts: VideoGenerateOpts): {
   };
 }
 
+/**
+ * Kling 4.0 is a kie.ai model served by the registry-driven Seedance-family
+ * routes (`/api/async-seedance-video/*`); the fal.ai Kling models the
+ * `/api/async-kling-video/*` endpoint ran (2.1 / 2.6 / 3 / O1 Edit) are
+ * retired. `--provider kling` stays as an alias: it means the Seedance-family
+ * routes with `kling-4.0` as the default model, and the job is polled as
+ * provider 'seedance'.
+ */
+export const KLING_DEFAULT_MODEL = 'kling-4.0';
+export function effectiveVideoProvider(provider: Provider): Provider {
+  return provider === 'kling' ? 'seedance' : provider;
+}
+
 function toArray(v: string | string[] | undefined): string[] {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
@@ -171,24 +187,24 @@ export interface VideoGenerateOpts {
 }
 
 export function registerVideoCommands(program: Command): void {
-  const video = program.command('video').description('AI video generation (Seedance, Flux 3, Gemini Omni, Kling, UGC)');
+  const video = program.command('video').description('AI video generation (Seedance, Flux 3, Gemini Omni, Kling 4.0, UGC)');
 
   video
     .command('generate')
     .description('Start a video generation job')
-    .requiredOption('--provider <name>', 'Provider: seedance | kling | ugc (seedance also runs flux-3-* and gemini-omni-video via --model; sora2 is retired)')
+    .requiredOption('--provider <name>', 'Provider: seedance | kling | ugc (seedance also runs flux-3-*, gemini-omni-video and kling-4.0 via --model; kling = seedance with --model kling-4.0; sora2 is retired)')
     .requiredOption('-p, --prompt <text>', 'Prompt')
     .option('--image <url|path>', 'Source image URL or local path (image-to-video modes; auto-uploaded)')
     .option('--audio <url|path>', 'Audio URL or local path (ugc only, required; auto-uploaded)')
-    .option('--reference-image <url|path>', 'Reference image URL or local path (Seedance 2.5 max 30 / 2.0 r2v max 9; see `video models`; repeatable; auto-uploaded)', collect, [] as string[])
-    .option('--reference-video <url|path>', 'Reference video URL or local path (Seedance 2.5 / 2.0 r2v; repeatable max 3; auto-uploaded)', collect, [] as string[])
+    .option('--reference-image <url|path>', 'Reference image URL or local path (Seedance 2.5 max 30 / Kling 4.0 max 10 / 2.0 r2v max 9; see `video models`; repeatable; auto-uploaded)', collect, [] as string[])
+    .option('--reference-video <url|path>', 'Reference video URL or local path (Seedance 2.5 max 3 / Kling 4.0 max 5, each 2-30 s / 2.0 r2v; repeatable; auto-uploaded)', collect, [] as string[])
     .option('--reference-audio <url|path>', 'Reference audio URL or local path (Seedance voice continuity; repeatable, mp3/wav ≤15MB; auto-uploaded)', collect, [] as string[])
-    .option('--model <slug>', 'Model slug, e.g. seedance-2.5, flux-3-t2v, gemini-omni-video, kling-3-pro. Without it seedance falls back to the 2.0 models (see `video models`)')
+    .option('--model <slug>', 'Model slug, e.g. seedance-2.5, kling-4.0, flux-3-t2v, gemini-omni-video. Without it seedance falls back to the 2.0 models and kling to kling-4.0 (see `video models`)')
     .option('--duration <n>', 'Duration in seconds', (v) => parseInt(v, 10))
     .option('--aspect-ratio <ratio>', 'Aspect ratio (9:16 | 16:9 | 1:1 | ...)')
     .option('--resolution <res>', 'Resolution (480p | 720p | 1080p | auto)')
     // Audio defaults to on for Seedance/Kling/UGC. --no-generate-audio disables.
-    .option('--no-generate-audio', 'Disable audio generation (Seedance/Kling)')
+    .option('--no-generate-audio', 'Disable audio generation (Seedance; Kling 4.0 always has audio)')
     .option('--wait', 'Block until the job completes', false)
     .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 900_000)
     .option('-o, --output <path>', 'Save the result video to this path (implies --wait)')
@@ -236,13 +252,15 @@ export function registerVideoCommands(program: Command): void {
           }
         }
 
-        const routes = providerRoutes(opts.provider);
-        const hasImage = Boolean(opts.image);
+        // `--provider kling` = the Seedance-family routes with kling-4.0.
+        if (opts.provider === 'kling' && !opts.model) opts.model = KLING_DEFAULT_MODEL;
+        const provider = effectiveVideoProvider(opts.provider);
+        const routes = providerRoutes(provider);
 
         let url: string;
         let body: Record<string, unknown>;
 
-        if (opts.provider === 'ugc') {
+        if (provider === 'ugc') {
           if (!opts.image || !opts.audio) {
             fail('UGC requires both --image and --audio URLs.', 2);
           }
@@ -254,22 +272,11 @@ export function registerVideoCommands(program: Command): void {
             aspect_ratio: opts.aspectRatio,
             model: opts.model,
           };
-        } else if (opts.provider === 'seedance') {
+        } else {
+          // seedance (and the kling alias): the registry-driven family.
           const seedance = buildSeedanceRequest(opts);
           url = seedance.route === 't2v' ? routes.t2v! : routes.i2v!;
           body = seedance.body;
-        } else {
-          // kling — only i2v exposed in this CLI version
-          if (!hasImage) fail('Kling requires --image. (Text-to-video not supported by this endpoint.)', 2);
-          url = routes.i2v!;
-          body = {
-            prompt: opts.prompt,
-            imageUrl: opts.image,
-            model: opts.model ?? 'kling-3-standard',
-            aspect_ratio: opts.aspectRatio,
-            duration: opts.duration?.toString(),
-            generate_audio: opts.generateAudio,
-          };
         }
 
         const shouldWait = opts.wait === true || Boolean(opts.output);
@@ -282,7 +289,7 @@ export function registerVideoCommands(program: Command): void {
 
         if (!shouldWait) {
           emitJson({
-            provider: opts.provider,
+            provider,
             request_id: requestId,
             status: start.data?.status ?? 'queued',
             estimated_completion_at: start.data?.estimated_completion_at,
@@ -291,17 +298,17 @@ export function registerVideoCommands(program: Command): void {
           return;
         }
 
-        const spin = ora({ text: `Waiting for ${opts.provider} video (${requestId})…`, stream: process.stderr }).start();
+        const spin = ora({ text: `Waiting for ${provider} video (${requestId})…`, stream: process.stderr }).start();
         const status = await pollUntilDone<BffStatusResponse>(async () => {
           const s = await request<BffStatusResponse>(`${routes.status}/${requestId}`);
           if (s.data?.status === 'failed') return { done: false, error: extractFailureMessage(s) };
           if (s.data?.status !== 'completed') {
-            spin.text = `Waiting for ${opts.provider} (${requestId})… ${s.data?.status ?? '?'}${s.data?.pipeline_stage ? ` · ${s.data.pipeline_stage}` : ''}`;
+            spin.text = `Waiting for ${provider} (${requestId})… ${s.data?.status ?? '?'}${s.data?.pipeline_stage ? ` · ${s.data.pipeline_stage}` : ''}`;
             return { done: false };
           }
           return { done: true, result: s };
         }, { intervalMs: 3000, timeoutMs: opts.timeout });
-        spin.succeed(`${opts.provider} video ready`);
+        spin.succeed(`${provider} video ready`);
 
         const videoUrl = extractResultUrl(status);
         if (!videoUrl) fail(`Result had no video URL: ${JSON.stringify(status)}`);
@@ -309,9 +316,9 @@ export function registerVideoCommands(program: Command): void {
         if (opts.output) {
           await downloadTo(videoUrl!, opts.output);
           note(`Saved ${opts.output}`);
-          emitJson({ provider: opts.provider, request_id: requestId, url: videoUrl, outputPath: opts.output });
+          emitJson({ provider, request_id: requestId, url: videoUrl, outputPath: opts.output });
         } else {
-          emitJson({ provider: opts.provider, request_id: requestId, url: videoUrl });
+          emitJson({ provider, request_id: requestId, url: videoUrl });
         }
       } catch (err) { fail(err); }
     });

@@ -150,7 +150,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Short product clip with synced sound effects, video-to-video restyle | `models/seedance-2.5.md` (`models/gemini-omni-video.md` only when the user names Gemini Omni) |
 | Re-create a competitor/reference video ad with your product | `references/replicate-video.md` → `quickdesign video replicate` (confirm the cost first; pass `--brand-kit` when the user has one) |
 | Video ad straight from a product / landing page URL | `references/url-to-video.md` → `quickdesign video from-url` (confirm the cost first; pass `--brand-kit` when the user has one) |
-| Loop / non-spoken b-roll | `models/seedance-2.5.md` (`models/kling-3-pro.md` only when the user names Kling) |
+| Loop / non-spoken b-roll | `models/seedance-2.5.md` (`models/kling-4.0.md` only when the user names Kling) |
 | Final video too low-res | `models/topaz-video-upscale.md` → `quickdesign video upscale --video <public url> --duration-seconds <n>` (run after concat) |
 | Research a brand's ads / what's working | `quickdesign spy brands --search <q>` (or `spy search <q>`) → `spy brand <id>`, `spy brand-ads <id>`, `spy best-ads`, `spy trending`, `spy for-you` |
 | Brand colors, fonts, logo or voice from a site | `quickdesign brand dna <url>` (full profile) or `brand scrape <url>` (colors / fonts / logo) |
@@ -318,7 +318,7 @@ models/                            ← per-model reference cards (gotchas + prom
    nano-banana-2.md                ← Nano Banana 2.1 / 2 / Pro / Lite: 4:5, budget, text-to-image
    flux-3.md                       ← only on request: Flux 3 text/image-to-video
    gemini-omni-video.md            ← only on request: Gemini Omni image/video→video
-   kling-3-pro.md                  ← only on request: Kling family (incl. O1 Edit)
+   kling-4.0.md                    ← only on request: Kling 4.0 (kie); fal Kling rows retired
    topaz-video-upscale.md          ← post-pipeline upscale
 ```
 
