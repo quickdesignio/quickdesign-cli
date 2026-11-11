@@ -23,7 +23,7 @@ quickdesign video models | jq '.data[] | select(.slug=="topaz-video-upscale")'
 
 - **Cost**: per second of source video, with a **minimum of 5 cr**. The CLI has no `--resolution` flag and never sends an output resolution, so the server prices a Topaz job at its default tier (2 cr/s as of 2026-10-26; `fal.videoUpscale.service.ts`). `--target-fps 60` doubles the charge. `quickdesign cost …` is an estimate; the real charge comes back as `token_cost` in the start response (omit `--wait` / `-o` to see it).
 - **60fps multiplier**: use `--target-fps 60` ONLY if downstream playback is genuinely 60fps; most social platforms are 30fps and the bump is wasted.
-- **Sibling**: `--provider bytedance` has a different cost ladder (`--target-resolution`, no `--factor`). Compare via `quickdesign cost --category video_upscale`.
+- **Siblings**: `--provider bytedance` has a different cost ladder (`--target-resolution`, no `--factor`); `--provider gemini` is Gemini Omni Flash 1.2's upscaler for clips of **up to 15 s** only (`--target-resolution 720p | 1080p | 4k`, must be above the source; 4 / 8 / 15 cr/s, see `./gemini-omni-flash-1.2.md`). Compare via `quickdesign cost --category video_upscale`.
 - **Inputs**: `--video` takes a public URL (the CLI does not upload for you) and `--duration-seconds` is REQUIRED (the server answers 400 without it). `--factor 1-4` is Topaz only.
 
 ## Pipeline placement

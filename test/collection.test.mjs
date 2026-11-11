@@ -152,3 +152,49 @@ test('collection add on a BFF without the route says it needs a newer server', a
   assert.equal(code, 1);
   assert.match(stderr, /needs a newer BFF/);
 });
+
+const REMOVED = { collection_id: COL, removed: [85725], not_in_collection: [7] };
+
+test('collection remove sends DELETE with the design ids and prints the result', async () => {
+  bff = await fakeBff(() => ({ json: { success: true, data: REMOVED } }));
+  const { code, stdout, stderr } = await runCli(['collection', 'remove', COL, '85725', '7']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout), REMOVED);
+  assert.match(stderr, /not in the collection: 7/);
+  assert.equal(bff.calls.length, 1);
+  const call = bff.calls[0];
+  assert.equal(call.method, 'DELETE');
+  assert.equal(call.path, `/api/collections/${COL}/items`);
+  assert.deepEqual(call.body, { design_ids: [85725, 7] });
+  assert.equal(call.headers.authorization, 'Bearer access-1');
+});
+
+test('collection remove takes an exact collection name and --human summarises', async () => {
+  bff = await fakeBff((call) =>
+    call.method === 'GET'
+      ? { json: { success: true, data: { total: 1, collections: [OTTA] } } }
+      : { json: { success: true, data: { ...REMOVED, collection_id: OTTA.id, not_in_collection: [] } } },
+  );
+  const { code, stdout } = await runCli(['collection', 'remove', 'Otta Week 1', '85725', '--human']);
+  assert.equal(code, 0);
+  assert.equal(bff.calls[1].method, 'DELETE');
+  assert.equal(bff.calls[1].path, `/api/collections/${OTTA.id}/items`);
+  assert.match(plain(stdout), /Removed 1: 85725/);
+  assert.match(plain(stdout), /Not in the collection 0/);
+});
+
+test('collection remove checks the ids first, and an unknown collection or an old BFF is reported plainly', async () => {
+  bff = await fakeBff(() => ({ status: 404, json: { success: false, error: 'Collection not found', code: 'COLLECTION_NOT_FOUND' } }));
+  const bad = await runCli(['collection', 'remove', COL, 'abc']);
+  assert.equal(bad.code, 2);
+  assert.match(bad.stderr, /design id/i);
+  assert.equal(bff.calls.length, 0);
+  const missing = await runCli(['collection', 'remove', COL, '85725']);
+  assert.equal(missing.code, 2);
+  assert.match(missing.stderr, new RegExp(`No collection with id ${COL}`));
+  await bff.close();
+  bff = await fakeBff(() => ({ status: 404, raw: '<!DOCTYPE html><pre>Cannot DELETE</pre>', headers: { 'content-type': 'text/html' } }));
+  const old = await runCli(['collection', 'remove', COL, '85725']);
+  assert.equal(old.code, 1);
+  assert.match(old.stderr, /needs a newer BFF/);
+});

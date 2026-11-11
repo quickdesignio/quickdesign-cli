@@ -15,7 +15,7 @@ description: GPT Image 2.5 Sunburst (image-to-image, via kie.ai). Default for im
 - Edits with an object **in the mouth / between the teeth**. Nano Banana (Gemini moderation) rejects these. Sunburst uses OpenAI moderation and lets editorial shots through.
 
 Use something else when:
-- **The deliverable is 4:5 or 5:4** (Meta feed). Sunburst doesn't support those ratios, so use `nano-banana-2-1` (or `nano-banana-pro` for higher fidelity). See `./nano-banana-2.md`.
+- **The deliverable is 4:5 or 5:4** (Meta feed). 2.5 Sunburst doesn't support those ratios, so use `nano-banana-2-1` (or `nano-banana-pro` for higher fidelity; see `./nano-banana-2.md`), or offer `gpt-image-2-6-sunburst-i2i` when the Sunburst look matters (same price, renders 4:5 / 5:4 at every resolution; `./gpt-image-2-6-sunburst-i2i.md`).
 - **There's no reference image at all** (pure text-to-image). The i2i model returns a 400. Use `nano-banana-2-1` (it switches to `nano-banana-2-1-t2i` by itself, 2 / 3 / 4 cr), or `gpt-image-2-t2i` when the user wants the GPT Image look.
 - **You're iterating on cheap drafts in bulk**. `nano-banana-2-1` at 1K (2 cr) or 2K (3 cr) costs a fraction.
 
@@ -74,6 +74,7 @@ These are general image-edit failure modes. Check every output for them before i
 
 | Slug | When | Cost (per image) |
 |---|---|---|
+| `gpt-image-2-6-sunburst-i2i` | Opt-in successor (2026-11-10): 16 refs, 4:5 / 5:4 and 16 ratios at every resolution; same look and moderation | 12 / 18 / 24 cr (1K–4K) |
 | `nano-banana-2-1` | 4:5 / 5:4, cheap iteration, auto T2I with no image, up to 10 refs (registry `isLatest` for image edit) | 2 / 3 / 4 cr (1K–4K) |
 | `nano-banana-2` | Previous Nano Banana; only for 0.5K drafts or on request | 3 / 4 / 6 / 8 cr (0.5K–4K) |
 | `nano-banana-pro` | Higher-fidelity Gemini, up to 8 refs, 4:5, native T2I | 8 / 16 / 32 cr (1K–4K) |

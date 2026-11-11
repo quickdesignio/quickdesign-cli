@@ -111,6 +111,7 @@ export function buildSeedanceRequest(opts: VideoGenerateOpts): {
       prompt: opts.prompt,
       model: opts.model ?? 'seedance-2.0-r2v',
       imageUrl: opts.image,
+      end_image_url: opts.endImage,
       image_urls: refImages.length ? refImages : undefined,
       video_urls: refVideos.length ? refVideos : undefined,
       // Voice continuity across multi-segment videos: pass extracted audio
@@ -127,6 +128,7 @@ export function buildSeedanceRequest(opts: VideoGenerateOpts): {
     return { route: 'i2v', body: {
       prompt: opts.prompt,
       imageUrl: opts.image,
+      end_image_url: opts.endImage,
       model: opts.model ?? 'seedance-2.0-i2v',
       duration: opts.duration,
       aspect_ratio: opts.aspectRatio,
@@ -172,6 +174,7 @@ export interface VideoGenerateOpts {
   provider: Provider;
   prompt: string;
   image?: string;
+  endImage?: string;
   audio?: string;
   referenceImage?: string | string[];
   referenceVideo?: string | string[];
@@ -195,6 +198,7 @@ export function registerVideoCommands(program: Command): void {
     .requiredOption('--provider <name>', 'Provider: seedance | kling | ugc (seedance also runs flux-3-*, gemini-omni-video and kling-4.0 via --model; kling = seedance with --model kling-4.0; sora2 is retired)')
     .requiredOption('-p, --prompt <text>', 'Prompt')
     .option('--image <url|path>', 'Source image URL or local path (image-to-video modes; auto-uploaded)')
+    .option('--end-image <url|path>', 'Last frame URL or local path (with --image; Seedance 2.5 / 2.0 i2v, Flux 3 i2v, Gemini Omni Flash 1.2 i2v ≤ 10 s; auto-uploaded). Seedance 2.5 refuses it together with references; Kling 4.0 has no last frame')
     .option('--audio <url|path>', 'Audio URL or local path (ugc only, required; auto-uploaded)')
     .option('--reference-image <url|path>', 'Reference image URL or local path (Seedance 2.5 max 30 / Kling 4.0 max 10 / 2.0 r2v max 9; see `video models`; repeatable; auto-uploaded)', collect, [] as string[])
     .option('--reference-video <url|path>', 'Reference video URL or local path (Seedance 2.5 max 3 / Kling 4.0 max 5, each 2-30 s / 2.0 r2v; repeatable; auto-uploaded)', collect, [] as string[])
@@ -228,6 +232,7 @@ export function registerVideoCommands(program: Command): void {
         const uploadSpin = ora({ text: 'Resolving inputs…', stream: process.stderr });
         const filesToUpload = [
           opts.image,
+          opts.endImage,
           opts.audio,
           ...toArray(opts.referenceImage),
           ...toArray(opts.referenceVideo),
@@ -236,6 +241,7 @@ export function registerVideoCommands(program: Command): void {
         if (filesToUpload.length > 0) uploadSpin.start();
         try {
           if (opts.image) opts.image = await ensureRemoteUrl(opts.image);
+          if (opts.endImage) opts.endImage = await ensureRemoteUrl(opts.endImage);
           if (opts.audio) opts.audio = await ensureRemoteUrl(opts.audio);
           opts.referenceImage = await Promise.all(
             toArray(opts.referenceImage).map((s) => ensureRemoteUrl(s))

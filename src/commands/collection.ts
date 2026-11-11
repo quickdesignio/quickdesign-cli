@@ -1,10 +1,11 @@
 /**
- * `quickdesign collection list|get|add`
+ * `quickdesign collection list|get|add|remove`
  *
  * Your collections and what is in them, served by the BFF (`/api/collections`):
  * your own collections plus the ones team mates share with the team — the
  * same set the app shows. `add` files designs into one of them with the app's
- * rules (your own, team mates' and template designs).
+ * rules (your own, team mates' and template designs); `remove` takes designs
+ * out again (whoever filed them — the collection's owner or a team mate).
  */
 import { Command } from 'commander';
 import kleur from 'kleur';
@@ -42,10 +43,17 @@ interface AddResult {
   not_found: number[];
 }
 
+interface RemoveResult {
+  collection_id: string;
+  removed: number[];
+  /** Designs that were not in the collection (unknown ids look the same). */
+  not_in_collection: number[];
+}
+
 interface Envelope<T> { success: boolean; data: T }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** The BFF's cap (same as the MCP tool quickdesign_collection_add). */
+/** The BFF's cap (same as the MCP tools quickdesign_collection_add / _remove). */
 const MAX_ADD = 50;
 
 /** A collection id, or the exact name (any case) of one collection you can see. */
@@ -189,6 +197,44 @@ export function registerCollectionCommands(program: Command): void {
         line(kleur.green('Added'), data.added);
         line('Already there', data.already_in_collection);
         line(data.not_found.length ? kleur.yellow('Not found') : 'Not found', data.not_found);
+      } catch (err) { fail(err); }
+    });
+
+  collection
+    .command('remove')
+    .description('Take designs out of a collection (yours, or one a team mate shares). The designs themselves are kept. Spends no credits')
+    .argument('<collection>', 'Collection id, or its exact name (from `collection list`)')
+    .argument('<design-ids...>', `Design ids (from \`collection get\`), up to ${MAX_ADD}`)
+    .option('--human', 'Pretty-print')
+    .action(async (ref: string, designArgs: string[], opts: { human?: boolean }) => {
+      try {
+        const designIds = parseDesignIds(designArgs);
+        const id = await resolveCollection(ref);
+        let data: RemoveResult;
+        try {
+          data = (await request<Envelope<RemoveResult>>(`/api/collections/${id}/items`, {
+            method: 'DELETE',
+            body: { design_ids: designIds },
+          })).data;
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) {
+            if ((err.body as { code?: string } | null)?.code === 'COLLECTION_NOT_FOUND') fail(`No collection with id ${id}`, 2);
+            // A BFF from before this command has no DELETE /api/collections/:id/items.
+            fail('This QuickDesign server does not support `collection remove` yet; it needs a newer BFF.');
+          }
+          throw err;
+        }
+        if (data.not_in_collection.length > 0) {
+          process.stderr.write(kleur.yellow(`not in the collection: ${data.not_in_collection.join(', ')}\n`));
+        }
+        if (!opts.human) {
+          emitJson(data);
+          return;
+        }
+        const line = (label: string, ids: number[]) =>
+          process.stdout.write(`${label} ${ids.length}${ids.length ? `: ${ids.join(', ')}` : ''}\n`);
+        line(kleur.green('Removed'), data.removed);
+        line(data.not_in_collection.length ? kleur.yellow('Not in the collection') : 'Not in the collection', data.not_in_collection);
       } catch (err) { fail(err); }
     });
 }

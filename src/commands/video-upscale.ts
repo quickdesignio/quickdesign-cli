@@ -1,7 +1,11 @@
 /**
  * `quickdesign video upscale|upscale-status|upscale-wait|upscale-history`
  *
- * Video upscaling via /api/async-video-upscale/* (topaz | bytedance).
+ * Video upscaling via /api/async-video-upscale/* (topaz | bytedance | gemini).
+ *
+ * `gemini` is Gemini Omni Flash 1.2's upscaler (fal): clips of up to 15 s to
+ * 720p / 1080p / 4k, above the source resolution (the server refuses a
+ * target at or below `--source-height`).
  */
 import { Command } from 'commander';
 import ora from 'ora';
@@ -21,18 +25,20 @@ export function registerVideoUpscaleCommands(video: Command): void {
     .command('upscale')
     .description('Start a video upscale job')
     .requiredOption('--video <url>', 'Source video URL')
-    .option('--provider <name>', 'topaz | bytedance', 'topaz')
+    .option('--provider <name>', 'topaz | bytedance | gemini', 'topaz')
     .option('--duration-seconds <n>', 'Source duration in seconds', (v) => parseFloat(v))
     .option('--factor <n>', 'Upscale factor (topaz: 1–4)', (v) => parseFloat(v))
-    .option('--target-resolution <res>', '(bytedance) target resolution')
+    .option('--target-resolution <res>', '(bytedance | gemini) target resolution; gemini: 720p | 1080p | 4k (default 1080p), above the source')
+    .option('--source-height <px>', '(gemini) source height in pixels, e.g. 720 — lets the server refuse a target that is not above it', (v) => parseInt(v, 10))
     .option('--target-fps <fps>', '(topaz | bytedance) target FPS')
     .option('--wait', 'Block until the job completes', false)
     .option('--timeout <ms>', 'Wait timeout in ms', (v) => parseInt(v, 10), 900_000)
     .option('-o, --output <path>', 'Save the upscaled video to this path (implies --wait)')
     .action(async (opts: {
       video: string;
-      provider?: 'topaz' | 'bytedance';
+      provider?: 'topaz' | 'bytedance' | 'gemini';
       durationSeconds?: number;
+      sourceHeight?: number;
       factor?: number;
       targetResolution?: string;
       targetFps?: string;
@@ -42,7 +48,10 @@ export function registerVideoUpscaleCommands(video: Command): void {
     }) => {
       try {
         const provider = opts.provider ?? 'topaz';
-        if (!['topaz', 'bytedance'].includes(provider)) fail(`Unknown upscale provider: ${provider}`, 2);
+        if (!['topaz', 'bytedance', 'gemini'].includes(provider)) fail(`Unknown upscale provider: ${provider}`, 2);
+        if (opts.sourceHeight !== undefined && !(Number.isInteger(opts.sourceHeight) && opts.sourceHeight > 0)) {
+          fail('--source-height must be a positive whole number of pixels', 2);
+        }
 
         const shouldWait = opts.wait === true || Boolean(opts.output);
 
@@ -53,6 +62,7 @@ export function registerVideoUpscaleCommands(video: Command): void {
           upscale_factor: opts.factor,
           target_resolution: opts.targetResolution,
           target_fps: opts.targetFps,
+          ...(provider === 'gemini' && opts.sourceHeight ? { source_height: opts.sourceHeight } : {}),
         };
 
         const start = await request<BffStartResponse>('/api/async-video-upscale/start-upscale', {
@@ -147,7 +157,7 @@ export function registerVideoUpscaleCommands(video: Command): void {
     .description('List your upscale jobs')
     .option('--limit <n>', 'Limit', (v) => parseInt(v, 10), 20)
     .option('--page <n>', 'Page', (v) => parseInt(v, 10), 1)
-    .option('--provider <name>', 'Filter by provider (topaz | bytedance)')
+    .option('--provider <name>', 'Filter by provider (topaz | bytedance | gemini)')
     .action(async (opts: { limit?: number; page?: number; provider?: string }) => {
       try {
         const r = await request<unknown>('/api/async-video-upscale/history', {
