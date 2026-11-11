@@ -6,7 +6,7 @@
 
 Command-line interface for [QuickDesign](https://quickdesign.io) — built so anyone (or any Claude Code agent) can drive the full QuickDesign stack from a terminal:
 
-- **Generate** AI images (GPT Image 2.5 Sunburst, Nano Banana) and videos (**Seedance 2.5** / 2.0 reference-to-video, Flux 3, Gemini Omni Video, Kling, UGC) — start, poll, save to disk in one command.
+- **Generate** AI images (GPT Image 2.5 Sunburst, Nano Banana) and videos (**Seedance 2.5** / 2.0 reference-to-video, Flux 3, Gemini Omni Video, Kling 4.0, UGC) — start, poll, save to disk in one command.
 - **Smart Ad Creator** — turn a product URL into a single concept ad, or fan out 16 concepts in parallel (Advantage+).
 - **Spy Brands** — query the competitor ad library: per-brand ads, cross-brand winners, this-week trends.
 - **Brand DNA** — scrape a website's colors / fonts / logo, or run the full Claude-streamed Brand DNA extraction (voice, audience, offer).
@@ -183,24 +183,25 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 
 | Command | Notes |
 | --- | --- |
-| `generate --prompt … [--model] [--wait] [-o path]` | Async start + optional poll + optional save |
+| `generate --prompt … [--model] [--wait] [-o path]` | Async start + optional poll + optional save. `--model` takes any active image slug (`gpt-image-2-5-sunburst-i2i`, `gpt-image-2-6-sunburst-i2i`, `nano-banana-2-1`, …) |
+| `replicate (--template <id> \| --reference <url\|path>) --product <url\|path>… [--brand-kit <uuid>] [--notes "<text>"] [--num 1-4] [--resolution 0.5K\|1K\|2K\|4K] [--aspect-ratio 1:1\|9:16\|4:5\|16:9] [--model] [--wait] [-o path]` | Re-create a reference **image** ad with your product — what dropping product photos on a template does on `/templates`. The reference is a template id (`template list`) or any public ad image (a Spy ad, a local file; auto-uploaded); the product photos (up to 5) replace the product, layout / copy style / mood stay; `--brand-kit` places your logo and applies the brand; `--notes` are your own instructions. One job with `--num` variations (default 2), each saved to your library. Billed like `image generate` in edit mode (`quickdesign cost <model> -r <res> --num <n>`). `-o ad.png` saves the others as `ad-2.png`, …. Video templates are refused: use `video replicate` |
 | `status <requestId>` | One-shot status check |
 | `wait <requestId> [--timeout] [-o path]` | Resume polling on a job started earlier and optionally download |
 | `result <requestId> [-o path]` | Fetch finished job result |
 | `history [--limit]` | List past image jobs |
 | `models` | Discover available image models |
 
-### `video` — Seedance 2.5 / 2.0 / Flux 3 / Gemini Omni / Kling / UGC
+### `video` — Seedance 2.5 / 2.0 / Flux 3 / Gemini Omni Video + Omni Flash 1.2 / Kling 4.0 / UGC
 
 | Command | Notes |
 | --- | --- |
-| `generate --provider <seedance\|kling\|ugc> [--model <slug>] --prompt … [--image \| --reference-image…] [--audio] [--duration] [--aspect-ratio] [--resolution] [--wait] [-o path]` | Start + optional poll + optional save. Pass `--model` to pick the model (`seedance-2.5`, `flux-3-t2v`, `flux-3-i2v` and `gemini-omni-video` all use `--provider seedance`). Without `--model`, `--reference-image` (1+) selects Seedance 2.0 r2v. Prompt-only jobs go to `start-text-to-video` only for `*-t2v` slugs; everything else (e.g. `seedance-2.5`) stays on `start-image-to-video`. `--provider sora2` exits with an error (retired upstream 2026-09-23); `status`/`wait`/`history sora2` still work. UGC requires both `--image` and `--audio`. |
+| `generate --provider <seedance\|kling\|ugc> [--model <slug>] --prompt … [--image [--end-image] \| --reference-image…] [--reference-video…] [--audio] [--duration] [--aspect-ratio] [--resolution] [--wait] [-o path]` | Start + optional poll + optional save. Pass `--model` to pick the model (`seedance-2.5`, `kling-4.0`, `flux-3-t2v`, `flux-3-i2v` and `gemini-omni-video` all use `--provider seedance`; `--provider kling` is an alias for `--provider seedance --model kling-4.0`, the fal Kling models are retired). Without `--model`, `--reference-image` (1+) selects Seedance 2.0 r2v. Prompt-only jobs go to `start-text-to-video` only for `*-t2v` slugs; everything else (e.g. `seedance-2.5`) stays on `start-image-to-video`. `--provider sora2` exits with an error (retired upstream 2026-09-23); `status`/`wait`/`history sora2` still work. UGC requires both `--image` and `--audio`. |
 | `replicate --video <url\|path> --product <url\|path>… [--model-image] [--brand-kit] [--notes "<text>"] [--language tr\|en] [--resolution 720p\|1080p] [--wait] [-o path]` | Re-create a reference ad with your product (Gemini-directed Seedance 2.5). `--product` is repeatable: as many photos as the model takes beside the model photo and logo (the server names the limit). Cost = Seedance 2.5 per-second × reference length (5–30 s) + 10 credits, refunded on failure. Follow with `video wait seedance <jobId>`. |
 | `from-url <url> [--image <url\|path>…] [--benefit <text>…] [--model <slug>] [--duration] [--ratio] [--resolution] [--language tr\|en] [--brand-kit] [--offer] [--cta] [--direction] [--wait] [-o path]` | Turn a product page into an original video ad (Claude-directed; Seedance 2.5 by default). Reads the page for free first; a page without photos costs nothing. Cost = the model's per-second price × duration at the resolution + 10 credits, refunded on failure. Follow with `video wait seedance <jobId>`. |
 | `status <provider> <jobId>` | One-shot status check |
 | `wait <provider> <jobId> [--timeout] [-o path]` | Resume polling on a job started earlier (default timeout 30 min) and optionally download |
 | `history <provider> [--limit] [--status]` | List jobs for a provider |
-| `upscale --video <public url> --duration-seconds <n> [--provider <topaz\|bytedance>] [--factor] [--wait] [-o path]` | Kick off a Topaz/ByteDance video upscale (`--duration-seconds` is required; upload a local file first with `design create`) |
+| `upscale --video <public url> --duration-seconds <n> [--provider <topaz\|bytedance\|gemini>] [--factor] [--target-resolution] [--source-height <px>] [--wait] [-o path]` | Kick off a Topaz / ByteDance / Gemini Omni Flash video upscale (`--duration-seconds` is required; upload a local file first with `design create`). `--provider gemini` takes clips of up to 15 s to `--target-resolution 720p \| 1080p \| 4k` (default 1080p), which must be above the source; pass `--source-height` (e.g. 720) so a target at or below it is refused before the charge |
 | `upscale-status <jobId>` | One-shot status check |
 | `upscale-wait <jobId> [--timeout] [-o path]` | Resume polling on an upscale job |
 | `upscale-history [--limit]` | List upscale jobs |
@@ -261,6 +262,7 @@ Your collections and what is in them: your own plus the ones team mates share wi
 | `list [--limit] [--offset] [--human]` | Your collections with item counts, most recently updated first |
 | `get <id> [--limit] [--offset] [--human]` | One collection plus a page of its items (newest added first) with image/video URLs |
 | `add <collection> <design-id...> [--human]` | Add up to 50 designs to a collection: give its id or its exact name. Your own, team mates' and template designs can be added; ones already there are skipped. Prints `added`, `already_in_collection` and `not_found`. Spends no credits |
+| `remove <collection> <design-id...> [--human]` | Take up to 50 designs out of a collection (id or exact name): yours, or one a team mate shares — whoever filed the items. The designs themselves are kept. Prints `removed` and `not_in_collection`. Spends no credits |
 
 ### `tag` — your team's design tags
 

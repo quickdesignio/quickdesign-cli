@@ -151,8 +151,8 @@ options:
      description: "Reference labels + --reference-audio voice lock, up to 30s per segment (5/8/10/12/15/20/25/30). ~336cr/12s at 720p. Default for UGC."
   2. label: "Seedance 2.0 R2V"
      description: "Cheaper at 1080p (~300cr/12s), 4K option, up to 9 reference images. 15s cap per segment."
-  3. label: "Kling 3 Standard"
-     description: "Only if the user asked for Kling (never offered on the agent's own initiative). 3/5/10/15s, single --image, no reference grammar or voice lock. ~95cr/10s."
+  3. label: "Kling 4.0"
+     description: "Only if the user asked for Kling (never offered on the agent's own initiative). 3-30s, up to 10 reference images + 5 reference clips, native audio, no --reference-audio voice lock. ~130cr/10s at 720p (more with reference clips)."
 ```
 
 Sora 2 is retired (2026-09-23) — never offer it. If the user names Sora, say so and use Seedance 2.5; mention Flux 3 (`../models/flux-3.md`) as an option they can pick.

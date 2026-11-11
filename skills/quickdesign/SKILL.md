@@ -1,22 +1,24 @@
 ---
 name: quickdesign
-description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 Sunburst, Nano Banana 2.1, Flux 3, Gemini Omni Video, and Kling. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, video upscale, to replicate/remake a competitor's video ad with your product, to turn a product page URL into a video ad, or to schedule organic Facebook Page / Instagram posts (Social planner) via QuickDesign.
+description: Use the `quickdesign` CLI to generate AI media — UGC promo videos, image edits, product creatives, video upscales — through Seedance 2.5, GPT Image 2.5 / 2.6 Sunburst, Nano Banana 2.1, Flux 3, Gemini Omni Video, Gemini Omni Flash 1.2, and Kling 4.0. Invoke this skill whenever the user asks for a talking-avatar video, multi-segment ad / promo / explainer, image edit (object swap, angle change, state change), product photoshoot, video upscale, video edit / extend, to replicate/remake a competitor's video or image ad with your product, to turn a product page URL into a video ad, or to schedule organic Facebook Page / Instagram posts (Social planner) via QuickDesign.
 ---
 
 # QuickDesign CLI skill
 
-This skill teaches Claude how to plan and execute AI media generation through the `quickdesign` CLI. The CLI wraps QuickDesign's hosted models (Seedance 2.5 / 2.0, GPT Image 2.5 Sunburst, Nano Banana 2.1 / 2 / Pro / Lite, Flux 3, Gemini Omni Video, Kling, video upscale) so a Claude session can produce videos and images directly from Bash without managing API keys, polling, or storage upload.
+This skill teaches Claude how to plan and execute AI media generation through the `quickdesign` CLI. The CLI wraps QuickDesign's hosted models (Seedance 2.5 / 2.0, GPT Image 2.5 / 2.6 Sunburst, Nano Banana 2.1 / 2 / Pro / Lite, Flux 3, Gemini Omni Video, Gemini Omni Flash 1.2, Kling 4.0, video upscale) so a Claude session can produce videos and images directly from Bash without managing API keys, polling, or storage upload.
 
 ## When to invoke
 
 - **Talking-avatar / UGC video** — "make a 30-second ad where this person says X", "convert this script to a video", "create a creator-selfie clip"
 - **Multi-segment promo / explainer** — anything where total speech is >30s (single Seedance 2.5 segment cap) or where the user wants angle cuts / framing progression
 - **Image edit / generation** — angle change, state change, product on white background, lifestyle composite, brand-kit-styled creatives, multi-product reference composition
-- **Video upscale** — bring 720p / 1080p output to 1080p / 4K
+- **Video upscale** — bring 720p / 1080p output to 1080p / 4K (Topaz by default; `--provider gemini` for clips ≤ 15 s)
+- **Video edit / extend** — "change the shirt in this clip", "make this video 8 seconds longer" → `models/gemini-omni-flash-1.2.md` (`-edit` / `-extend`; only when the user asks for an edit of an existing clip, never instead of a regen on Seedance)
 - **Replicate a competitor / reference video ad** — re-create it with the user's product → `quickdesign video replicate` (`references/replicate-video.md`)
+- **Replicate a reference image ad / template with the product** — "make this ad with my product", a /templates pick, a Spy ad image → `quickdesign image replicate` (`--template <id>` or `--reference <url|file>`, `--product …`, optional `--brand-kit`; one job, 2 variations by default, each saved to the library; confirm the cost first: `quickdesign cost <model> -r 1K --num 2`)
 - **Video ad from a product page** — "make a video ad from this link" → `quickdesign video from-url` (`references/url-to-video.md`)
 - **Schedule organic Facebook / Instagram posts**: "post this design to our Page tomorrow at 10", "plan next week's Instagram posts", "what's scheduled?" → `quickdesign social` (`references/social-planner.md`)
-- **Your collections**: "what's in my Summer collection?", "use the images from my X collection" → `quickdesign collection list` then `collection get <id>` (items carry `design_id` + image/video URLs). File a result into one with `collection add <id-or-exact-name> <design-id...>` (a finished job's design id: for video it is `result_design_id` in `quickdesign video status <provider> <request_id>`, since `video generate --wait -o` prints only `{provider, request_id, url, outputPath}`; for images it is `designId` in the output)
+- **Your collections**: "what's in my Summer collection?", "use the images from my X collection" → `quickdesign collection list` then `collection get <id>` (items carry `design_id` + image/video URLs). File a result into one with `collection add <id-or-exact-name> <design-id...>` (a finished job's design id: for video it is `result_design_id` in `quickdesign video status <provider> <request_id>`, since `video generate --wait -o` prints only `{provider, request_id, url, outputPath}`; for images it is `designId` in the output). Take designs out again with `collection remove <id-or-exact-name> <design-id...>` (the designs stay in the library)
 - **Your team's design tags**: "mark these as winner", "tag 85725 revize", "show my winners" → `quickdesign tag add <design-id...> --tag <name>` (creates missing tags; up to 50 design ids per call, a design holds at most 20 tags (`limit_reached` lists designs that hit it); names are max 32 chars, no comma), `tag remove …`, `tag list`, and `design list --tag <name>` (lists only YOUR designs carrying the tag, so it can be fewer than `tag list`'s count; repeatable, max 10, all must match; an unknown tag is an error, exit 2; CLI ≥ 0.22.0). These are the team's own labels — NOT `template list --tag`, which filters the public template library. `tag delete` removes a tag from every design for the whole team: confirm with the user first, then pass `--yes`.
 - **Edit the video open in the user's QuickDesign editor**: "cut the silences", "remove the filler words", trim, captions, text, transitions, save → `quickdesign editor …` (`references/video-editor.md`; CLI ≥ 0.23.0; the editor must be open)
 - **Bulk / batch creative production** — "do this for each of these 5 product photos"
@@ -32,8 +34,8 @@ These apply to every generation. Breaking any of them produces visible defects.
 
    - **Video — one default, every job**: `quickdesign video generate --provider seedance --model seedance-2.5 …` for EVERY video job: UGC / talking-avatar / promo / explainer / multi-scene, b-roll and loops, cinematic single shots, pure text-to-video, restyles, and **fixing or redoing a shot inside an existing video** (`references/fix-a-shot.md`). One 2.5 segment holds up to **30s** (durations 5/8/10/12/15/20/25/30), 3 reference videos and 3 reference audios; the reference-image cap is the registry's `maxReferenceImages` (check `quickdesign video models`). Default to **720p** (28 cr/s). 1080p costs 2.5× as much and 4K isn't available. See `models/seedance-2.5.md`.
    - **"Latest" comes from the registry.** Each category has at most one model flagged `isLatest: true` in `quickdesign video models` / `image models` (as of 2026-10-26: `seedance-2.5` for video, `nano-banana-2-1` for image edit, `suno-v6` for music, `elevenlabs-tts-v4` for speech). It is what the MCP tools run when no model is named. Before a video job, check the flag: if a newer Seedance generation than `seedance-2.5` carries it (e.g. `seedance-3`), that one is the default: use it, and tell the user the cards look stale. The CLI itself never reads the flag, so keep passing `--model`.
-   - **No silent model switches.** Never move a video job to another model (`kling-*` including `kling-o1-edit`, `gemini-omni-video`, `flux-3-*`, `seedance-2.0-*`) because it looks cheaper, faster or better suited. Use another model only when the user names it. When the default truly can't do what was asked (native 4K, more reference images than the registry allows), say so and ask with `AskUserQuestion` before switching. The model cards for the other models describe what they do so you can answer the user's questions about them, not as triggers to switch.
-   - **Image edit**: `quickdesign image generate --model gpt-image-2-5-sunburst-i2i --reference-image …` (1–10 refs, 1K/2K/4K). Sunburst stays the edit default even though the registry flags `nano-banana-2-1` as the image `isLatest` (that flag only picks the MCP's model-less default). Exceptions: **4:5 / 5:4 deliverables** go to `nano-banana-2-1` (Sunburst silently clamps them to 3:4 / 4:3), and **no reference at all** goes to `nano-banana-2-1` too (it switches to its `-t2i` row by itself; the Sunburst i2i model 400s). See `models/gpt-image-2-5-sunburst-i2i.md`.
+   - **No silent model switches.** Never move a video job to another model (`kling-4.0`, `gemini-omni-video`, `gemini-omni-flash-1.2-*`, `flux-3-*`, `seedance-2.0-*`) because it looks cheaper, faster or better suited. Use another model only when the user names it. When the default truly can't do what was asked (native 4K, more reference images than the registry allows), say so and ask with `AskUserQuestion` before switching. The model cards for the other models describe what they do so you can answer the user's questions about them, not as triggers to switch.
+   - **Image edit**: `quickdesign image generate --model gpt-image-2-5-sunburst-i2i --reference-image …` (1–10 refs, 1K/2K/4K). Sunburst stays the edit default even though the registry flags `nano-banana-2-1` as the image `isLatest` (that flag only picks the MCP's model-less default). Exceptions: **4:5 / 5:4 deliverables** go to `nano-banana-2-1` (Sunburst silently clamps them to 3:4 / 4:3), and **no reference at all** goes to `nano-banana-2-1` too (it switches to its `-t2i` row by itself; the Sunburst i2i model 400s). See `models/gpt-image-2-5-sunburst-i2i.md`. **GPT Image 2.6 Sunburst** (`gpt-image-2-6-sunburst-i2i`, same price, 16 refs, every ratio incl. 4:5 / 5:4 at every resolution) is available as an opt-in: use it when the user names it, or offer it for a 4:5 / 5:4 deliverable that must keep the Sunburst look (`models/gpt-image-2-6-sunburst-i2i.md`). 2.5 stays the default until the user says otherwise.
    - **Sora 2 is retired** (2026-09-23), so `--provider sora2` no longer works. If the user asks for Sora, say so and use Seedance 2.5; mention Flux 3 (`models/flux-3.md`) only as an option the user can pick.
 
    ⚠️ **Stay in reference mode; don't drift to i2v.** Animating a single image still means one `--reference-image` on Seedance 2.5, not `--image` and not `seedance-2.0-i2v`. The reasoning chain *"user wants to animate static images → image-to-video → i2v"* is the silent regression this rule exists to prevent. Reference mode keeps `@Image1` grammar, multi-ref and `--reference-audio`. On 2.5, don't pass `--image` with `--reference-*`: the image silently becomes one more reference.
@@ -143,15 +145,17 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Fix / redo one shot inside an existing video (extra or missing person, wrong product, identity drift) | `references/fix-a-shot.md` → regenerate only that shot on `seedance-2.5` with each person as a reference image, then splice it back |
 | Polish a finished video: random logo → brand card, keep the voiceover across a replaced shot, wrong product in an inset, AI-sounding effects → real recordings, save as a design | `references/edit-methods.md` (with `fix-a-shot.md` for the shot itself) |
 | User asks for Seedance 2.0, or needs native 4K (ask first — rule #0) | `models/seedance-2.0-r2v.md` |
-| Image edit (angle, state, multi-product composition) | `models/gpt-image-2-5-sunburst-i2i.md` → `references/multi-reference-pattern.md` |
+| Image edit (angle, state, multi-product composition) | `models/gpt-image-2-5-sunburst-i2i.md` → `references/multi-reference-pattern.md` (`models/gpt-image-2-6-sunburst-i2i.md` when the user names 2.6, or for 4:5 / 5:4 in the Sunburst look) |
+| Re-create a reference image ad / template with the product | `quickdesign image replicate` (quick start below; `template list` for template ids, `spy brand-ads` for a Spy ad's `image_url`) |
 | 4:5 / 5:4 image, cheap drafts, text-to-image, "Banana Pro" | `models/nano-banana-2.md` (covers Nano Banana 2.1 / 2 / Pro / Lite; `nano-banana-2-1` first) |
 | Voice-over, dubbing / translating a video, lip-sync, voice isolation, sound effects, music | No CLI command yet: MCP tools only (`references/connecting-claude-ai-via-mcp.md`, "Audio and video editing") |
 | Cinematic single shot, pure text-to-video, "use Sora" | `models/seedance-2.5.md` (Sora 2 is retired; `models/flux-3.md` only when the user names Flux) |
 | Short product clip with synced sound effects, video-to-video restyle | `models/seedance-2.5.md` (`models/gemini-omni-video.md` only when the user names Gemini Omni) |
+| Edit an existing clip from a sentence, extend a clip by 3–10 s, cheap 360p drafts, "use Gemini Flash" | `models/gemini-omni-flash-1.2.md` (edit / extend are the only tools for those jobs; the generator variants only when the user names Gemini Omni Flash) |
 | Re-create a competitor/reference video ad with your product | `references/replicate-video.md` → `quickdesign video replicate` (confirm the cost first; pass `--brand-kit` when the user has one) |
 | Video ad straight from a product / landing page URL | `references/url-to-video.md` → `quickdesign video from-url` (confirm the cost first; pass `--brand-kit` when the user has one) |
-| Loop / non-spoken b-roll | `models/seedance-2.5.md` (`models/kling-3-pro.md` only when the user names Kling) |
-| Final video too low-res | `models/topaz-video-upscale.md` → `quickdesign video upscale --video <public url> --duration-seconds <n>` (run after concat) |
+| Loop / non-spoken b-roll | `models/seedance-2.5.md` (`models/kling-4.0.md` only when the user names Kling) |
+| Final video too low-res | `models/topaz-video-upscale.md` → `quickdesign video upscale --video <public url> --duration-seconds <n>` (run after concat; `--provider gemini` is the Gemini Omni Flash upscaler for clips ≤ 15 s, see `models/gemini-omni-flash-1.2.md`) |
 | Research a brand's ads / what's working | `quickdesign spy brands --search <q>` (or `spy search <q>`) → `spy brand <id>`, `spy brand-ads <id>`, `spy best-ads`, `spy trending`, `spy for-you` |
 | Brand colors, fonts, logo or voice from a site | `quickdesign brand dna <url>` (full profile) or `brand scrape <url>` (colors / fonts / logo) |
 | Look up, fetch or archive one of the user's designs | `quickdesign design get <id>`, `design download <id> -o <path>` (`-o` required), `design delete <id>` (soft-delete: confirm first) |
@@ -174,7 +178,7 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Per-segment reference choice | `references/multi-reference-pattern.md`, `references/narrative-arc.md` |
 | Generation: prompt skeleton + gotchas for the model you picked | `models/<slug>.md` |
 | Quality gates: reference-edit anatomy check, plan-summary approval, the publish / ad-spend go-ahead (Gate 3: `social publish-now`, `social retry`, `meta campaign-status --status active`) | `references/confirmation-rules.md` |
-| Post-processing: subtitle, upscale | `references/auto-subtitle.md`, `models/topaz-video-upscale.md` |
+| Post-processing: subtitle, upscale | `references/auto-subtitle.md`, `models/topaz-video-upscale.md` (+ the Gemini upscaler in `models/gemini-omni-flash-1.2.md`) |
 
 ## Discover at runtime
 
@@ -274,6 +278,13 @@ quickdesign design create ./final.mp4 --title "Summer ad v2"     # --asset → l
 quickdesign collection list --human
 quickdesign collection get <collection-uuid> --human   # items: design_id (or spy ad), type, title, URL
 quickdesign collection add "Otta Week 1" 85725 --human # file designs into it (id or exact name; up to 50 ids)
+quickdesign collection remove "Otta Week 1" 85725 --human # take designs out again (the designs are kept)
+
+# Replicate an image ad / template with your product (the /templates product drop; 2 variations, saved to the library)
+quickdesign cost nano-banana-2-1 -r 1K --num 2             # the registry's latest image-edit model is the default; confirm first
+quickdesign image replicate --template 88 --product ./product.jpg \
+  --brand-kit <uuid> --notes "keep the headline, swap the price to $49" -o ./ad.png   # also writes ad-2.png
+quickdesign image replicate --reference <spy-ad image_url> --product ./p1.jpg --product ./p2.jpg --aspect-ratio 4:5
 
 # Your team's own design tags (not the template library's tags)
 quickdesign tag list --human                              # tags, colors, design counts
@@ -315,10 +326,12 @@ models/                            ← per-model reference cards (gotchas + prom
    seedance-2.0-r2v.md             ← only on request: Seedance 2.0, native 4K
    seedance-2.0-i2v.md             ← niche; explicit user opt-in only
    gpt-image-2-5-sunburst-i2i.md   ← DEFAULT image edit + multi-ref product composition
+   gpt-image-2-6-sunburst-i2i.md   ← opt-in: GPT Image 2.6 Sunburst, 16 refs, 4:5 / 5:4 at every resolution
    nano-banana-2.md                ← Nano Banana 2.1 / 2 / Pro / Lite: 4:5, budget, text-to-image
    flux-3.md                       ← only on request: Flux 3 text/image-to-video
    gemini-omni-video.md            ← only on request: Gemini Omni image/video→video
-   kling-3-pro.md                  ← only on request: Kling family (incl. O1 Edit)
+   gemini-omni-flash-1.2.md        ← only on request: Gemini Omni Flash 1.2 (fal) frames / references; its edit, extend and upscale tools
+   kling-4.0.md                    ← only on request: Kling 4.0 (kie); fal Kling rows retired
    topaz-video-upscale.md          ← post-pipeline upscale
 ```
 

@@ -37,7 +37,7 @@ If a newer Seedance generation than `seedance-2.5` is in the list, it is the def
 | User names Flux 3 | `flux-3-t2v` / `flux-3-i2v` | 5–20s, native audio; no `@Image` labels, no `--reference-audio` continuity |
 | User names Gemini Omni | `gemini-omni-video` | 4/6/8/10s, ~29–57cr; max 2 image refs |
 | User explicitly opts into i2v | `seedance-2.0-i2v` | Only override the default on explicit user opt-in — never silently |
-| User names Kling | `kling-3-standard` / `kling-3-pro` | Cheaper but no `@Image1` refs, no `--reference-audio` — single segments only |
+| User names Kling | `kling-4.0` | 3–30 s, up to 10 image / 5 video refs, native audio; no `--reference-audio` — single segments only |
 | Already-rendered video needs new caption | `fal-auto-subtitle` | Post-processing only, see `../references/auto-subtitle.md` |
 | Generated video is too low-res | `topaz-video-upscale` / `bytedance-video-upscale` | Run after final concat — see `../models/topaz-video-upscale.md` |
 
@@ -46,7 +46,7 @@ For full per-model gotchas / prompt skeletons / failure modes, jump to the model
 - `../models/seedance-2.0-r2v.md` — only on request (Seedance 2.0, native 4K)
 - `../models/flux-3.md` — only on request
 - `../models/gemini-omni-video.md` — only on request
-- `../models/kling-3-pro.md` — only on request
+- `../models/kling-4.0.md` — only on request
 - `../references/fix-a-shot.md` — redo one bad shot of a finished video on Seedance 2.5 and splice it back
 - `../models/seedance-2.0-i2v.md` — almost never the right pick (here for completeness)
 

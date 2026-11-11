@@ -40,8 +40,9 @@ const UNKNOWN_TOOL = /^(MCP error -?\d+: )?(Tool \S+ not found|Unknown tool\b)/i
 export async function callMcpTool(
   name: string,
   args: Record<string, unknown>,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; unavailableMessage?: string } = {},
 ): Promise<McpToolResult> {
+  const unavailable = opts.unavailableMessage ?? UNAVAILABLE_MESSAGE;
   const id = nextId++;
   let res: Response;
   try {
@@ -85,12 +86,12 @@ export async function callMcpTool(
   if (!msg) throw new Error('The QuickDesign MCP endpoint sent no answer for this call.');
   if (msg.error) {
     const text = msg.error.message ?? 'MCP error';
-    throw new Error(UNKNOWN_TOOL.test(text) ? UNAVAILABLE_MESSAGE : text);
+    throw new Error(UNKNOWN_TOOL.test(text) ? unavailable : text);
   }
   const content = Array.isArray(msg.result?.content) ? msg.result!.content! : [];
   const isError = msg.result?.isError === true;
   if (isError && content.length === 1 && content[0].type === 'text' && /^(MCP error -?\d+: )?Tool \S+ not found/i.test(content[0].text)) {
-    throw new Error(UNAVAILABLE_MESSAGE);
+    throw new Error(unavailable);
   }
   return { content, isError };
 }

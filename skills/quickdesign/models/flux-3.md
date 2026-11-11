@@ -59,4 +59,4 @@ Use `--image` (first frame) for i2v, not `--reference-image`.
 
 - Spoken UGC / identity-anchored video → `./seedance-2.5.md`
 - Cheap image→video with synced sound effects → `./gemini-omni-video.md`
-- Budget non-spoken b-roll → `./kling-3-pro.md`
+- Kling-style cinematic motion with references → `./kling-4.0.md`

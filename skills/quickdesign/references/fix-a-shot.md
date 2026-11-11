@@ -5,7 +5,7 @@ description: When one or two shots of a finished video hallucinate (a person app
 
 The user wants the rest of the video untouched. So the unit of work is **the shot**, not the video, and the model is the default one (`seedance-2.5`, cardinal rule #0).
 
-**Don't use a video-to-video edit model for this** (`kling-o1-edit`, Gemini Omni v2v). They re-render the whole clip from a prompt like "remove the extra woman", and in practice they remove or replace the wrong people too. On 2026-10-14 O1 Edit was asked to remove one duplicated woman from a 3-person pile; it removed both women in one clip and the woman plus the tactical man in the other.
+**Don't use a video-to-video edit model for this** (Gemini Omni v2v; the retired `kling-o1-edit` had the same problem). They re-render the whole clip from a prompt like "remove the extra woman", and in practice they remove or replace the wrong people too. On 2026-10-14 O1 Edit was asked to remove one duplicated woman from a 3-person pile; it removed both women in one clip and the woman plus the tactical man in the other.
 
 ## 1. Find the bad shot's exact frames
 
