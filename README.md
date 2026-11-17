@@ -205,6 +205,9 @@ quickdesign auth config set baseUrl http://localhost:3001   # local dev
 | `upscale-status <jobId>` | One-shot status check |
 | `upscale-wait <jobId> [--timeout] [-o path]` | Resume polling on an upscale job |
 | `upscale-history [--limit]` | List upscale jobs |
+| `lipsync (--video <url\|path> \| --video-design <id>) (--audio <url\|path> \| --audio-design <id>) [--wait] [-o path]` | Sync the mouth of the person in a video to new speech (sync-lipsync v3). Local files are uploaded first; URLs must be QuickDesign-hosted. The result lasts as long as the shorter input (max 120 s) and costs 10 credits per started second |
+| `lipsync-status <jobId>` | One-shot status check |
+| `lipsync-wait <jobId> [--timeout] [-o path]` | Resume polling on a lip-sync job |
 | `subtitle <video> [--style default\|tiktok\|minimal\|karaoke\|reels-pop] [--language] [--font-name] [--font-size] [--position] [--wait] [-o path]` | Burn karaoke-style auto-subtitles into a video (ElevenLabs ASR + libass; ~$0.03/min). Default preset: Montserrat 65px bold, 5 words/line, bottom-positioned, yellow highlight. Local files (up to 200 MB) are auto-uploaded to R2. |
 | `subtitle-status <jobId>` | One-shot status check |
 | `subtitle-history [--limit]` | List subtitle jobs |
