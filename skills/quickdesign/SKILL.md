@@ -148,7 +148,8 @@ These apply to every generation. Breaking any of them produces visible defects.
 | Image edit (angle, state, multi-product composition) | `models/gpt-image-2-5-sunburst-i2i.md` → `references/multi-reference-pattern.md` (`models/gpt-image-2-6-sunburst-i2i.md` when the user names 2.6, or for 4:5 / 5:4 in the Sunburst look) |
 | Re-create a reference image ad / template with the product | `quickdesign image replicate` (quick start below; `template list` for template ids, `spy brand-ads` for a Spy ad's `image_url`) |
 | 4:5 / 5:4 image, cheap drafts, text-to-image, "Banana Pro" | `models/nano-banana-2.md` (covers Nano Banana 2.1 / 2 / Pro / Lite; `nano-banana-2-1` first) |
-| Voice-over, dubbing / translating a video, lip-sync, voice isolation, sound effects, music | No CLI command yet: MCP tools only (`references/connecting-claude-ai-via-mcp.md`, "Audio and video editing") |
+| Lip-sync: make the person in a video mouth new speech | `quickdesign video lipsync --video <path\|url> --audio <path\|url> -o out.mp4` (CLI ≥ 0.25.0; or `--video-design` / `--audio-design` ids). sync-lipsync v3, ≤ 120 s, 10 cr per started second of the shorter input; one clearly visible face works best. Only for re-voicing an EXISTING video: new talking videos stay on Seedance native audio (`references/voice-continuity.md`) |
+| Voice-over, dubbing / translating a video, voice isolation, sound effects, music | No CLI command yet: MCP tools only (`references/connecting-claude-ai-via-mcp.md`, "Audio and video editing") |
 | Cinematic single shot, pure text-to-video, "use Sora" | `models/seedance-2.5.md` (Sora 2 is retired; `models/flux-3.md` only when the user names Flux) |
 | Short product clip with synced sound effects, video-to-video restyle | `models/seedance-2.5.md` (`models/gemini-omni-video.md` only when the user names Gemini Omni) |
 | Edit an existing clip from a sentence, extend a clip by 3–10 s, cheap 360p drafts, "use Gemini Flash" | `models/gemini-omni-flash-1.2.md` (edit / extend are the only tools for those jobs; the generator variants only when the user names Gemini Omni Flash) |
@@ -206,7 +207,7 @@ quickdesign auth login
 
 If any command fails with `Session ended — run quickdesign login`, stop and ask the user to run `! quickdesign login`; do not retry or work around it. If a call is refused for plan or trial reasons, point the user to the app's pricing page (`app.quickdesign.io/packages`); don't retry. Scripts that need a raw bearer use `$(quickdesign auth token)`; never read `~/.config/quickdesign/auth.json` directly (its access token lives an hour and is renewed on use).
 
-**Long jobs.** Video jobs take about 3-6 minutes. Run them in the background (Bash `run_in_background`), or omit `--wait`, keep the printed `request_id`, and resume with `quickdesign video wait <provider> <request_id> -o out.mp4`. A timed-out wait does not cancel or refund the job. Check or list jobs with `video status|history`, `image wait|status`, `ad-creator wait|status`, `video subtitle-status`, `video upscale-status`.
+**Long jobs.** Video jobs take about 3-6 minutes. Run them in the background (Bash `run_in_background`), or omit `--wait`, keep the printed `request_id`, and resume with `quickdesign video wait <provider> <request_id> -o out.mp4`. A timed-out wait does not cancel or refund the job. Check or list jobs with `video status|history`, `image wait|status`, `ad-creator wait|status`, `video subtitle-status`, `video upscale-status`, `video lipsync-status` (resume with `video lipsync-wait <jobId> -o out.mp4`).
 
 ```bash
 # Image edit — angle change / state change / multi-ref product composition

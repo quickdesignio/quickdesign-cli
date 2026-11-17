@@ -12,7 +12,8 @@
  *   ugc      → /api/async-ugc-video/*
  *
  * Subtitle subcommands live in video-subtitle.ts, upscale in video-upscale.ts,
- * replicate in video-replicate.ts, from-url in video-from-url.ts;
+ * replicate in video-replicate.ts, from-url in video-from-url.ts, lipsync in
+ * video-lipsync.ts;
  * shared response shapes/extractors in video-shared.ts.
  *
  * Unlike image generation, video endpoints don't expose a separate `/result/:id`
@@ -38,6 +39,7 @@ import { registerVideoSubtitleCommands } from './video-subtitle.js';
 import { registerVideoUpscaleCommands } from './video-upscale.js';
 import { registerVideoReplicateCommands } from './video-replicate.js';
 import { registerVideoFromUrlCommands } from './video-from-url.js';
+import { registerVideoLipsyncCommands } from './video-lipsync.js';
 
 type Provider = 'sora2' | 'kling' | 'seedance' | 'ugc';
 const PROVIDERS: readonly Provider[] = ['sora2', 'kling', 'seedance', 'ugc'];
@@ -401,6 +403,7 @@ export function registerVideoCommands(program: Command): void {
   registerVideoUpscaleCommands(video);
   registerVideoReplicateCommands(video);
   registerVideoFromUrlCommands(video);
+  registerVideoLipsyncCommands(video);
 
   video
     .command('models')

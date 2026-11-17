@@ -65,9 +65,9 @@ The MCP server exposes the full generation surface now, not just read tools (che
 
 Every skill rule applies on the MCP path exactly as on the CLI: plan summary + reference-edit gates (`./confirmation-rules.md`), `@Image1` labels, the no-music / no-subtitles lines.
 
-### Audio and video editing (MCP only — no CLI command yet)
+### Audio and video editing (MCP only, except lip-sync)
 
-These tools take QuickDesign-hosted media (a `design_id` or a library URL) and save their result as a new design. In Claude Code, the CLI has no equivalent: tell the user it is an MCP tool, or do the ffmpeg step locally when that is enough.
+These tools take QuickDesign-hosted media (a `design_id` or a library URL) and save their result as a new design. In Claude Code, the CLI has an equivalent only for lip-sync (`quickdesign video lipsync`, CLI ≥ 0.25.0, which also uploads local files); for the others, tell the user it is an MCP tool, or do the ffmpeg step locally when that is enough.
 
 | Tool | What it does | Cost |
 |---|---|---|
@@ -78,7 +78,7 @@ These tools take QuickDesign-hosted media (a `design_id` or a library URL) and s
 | `quickdesign_audio_isolate` | Speech alone, without music / noise (ElevenLabs), ≤ 300 s | 0 |
 | `quickdesign_sfx_generate` | Sound effect from a description, 0.5–22 s, `loop` for ambience | 0 |
 | `quickdesign_music_generate`, `_music_status` | 2 music tracks, 10–360 s | fixed per generation (15 cr on the default model) |
-| `quickdesign_video_lipsync` | Re-sync the speaker's mouth to new speech (sync-lipsync v3), ≤ 120 s | 10 cr per second of the shorter input (min 10) |
+| `quickdesign_video_lipsync` (CLI: `quickdesign video lipsync`) | Re-sync the speaker's mouth to new speech (sync-lipsync v3), ≤ 120 s | 10 cr per second of the shorter input (min 10) |
 | `quickdesign_video_translate` | Dub into another language in the speaker's OWN cloned voice, lips synced (transcribe → clone → translate → speech → lip-sync), 10–300 s, 30 languages | ≈ 152 cr + 15 cr/s + 15 cr per 1000 translated characters (estimated from the length); charged on completion |
 
 Pick by intent: the same person in another language → `video_translate`; new words or a stock voice → `video_voiceover` (then `video_lipsync` if the face is on screen); clean a noisy voice → `audio_isolate`. Speech with an ElevenLabs voice uses the registry's latest ElevenLabs model unless `model` is passed.
