@@ -1,9 +1,9 @@
 ---
 slug: gemini-omni-flash-1.2-i2v
 category: video_generate
-provider: fal
+provider: kie
 status: opt-in
-description: Gemini Omni Flash 1.2 (Google, via fal.ai) — one family, five registry rows. Frames (`-i2v`: start image, optional end frame) and References (`-r2v`: at least one reference, up to 10 images + 3 clips; no text-to-video) generate 3–15 s with native audio at 360p–4K, 16:9 / 9:16, for 3 / 8 / 12 / 23 cr per second. Two clip tools: `-edit` (change an existing clip ≤ 15 s from a sentence) and `-extend` (append 3–10 s to any clip). Plus `gemini-omni-flash-1.2-upscale` (`video upscale --provider gemini`). Unrelated to the kie-served `gemini-omni-video`.
+description: Gemini Omni Flash 1.2 (Google; `-i2v` / `-r2v` / `-edit` via kie.ai, `-extend` / `-upscale` via fal.ai) — one family, five registry rows. Frames (`-i2v`: start image, optional end frame) and References (`-r2v`: a prompt alone, or up to 6 reference images; no reference videos) generate 3–15 s with native audio at 360p–4K, 16:9 / 9:16, for 3 / 8 / 12 / 23 cr per second. Two clip tools: `-edit` (change an existing clip ≤ 15 s from a sentence) and `-extend` (append 3–10 s to any clip). Plus `gemini-omni-flash-1.2-upscale` (`video upscale --provider gemini`). Unrelated to the kie-served `gemini-omni-video`.
 ---
 
 ## When to use
@@ -32,7 +32,7 @@ quickdesign video models | jq '.data[] | select(.slug | startswith("gemini-omni-
 | Row | Inputs | Duration | Billed on |
 |---|---|---|---|
 | `gemini-omni-flash-1.2-i2v` | `--image` (+ `--end-image`, then ≤ 10 s) | 3–15 s | output seconds |
-| `gemini-omni-flash-1.2-r2v` | at least one reference: ≤ 10 `--reference-image` and/or ≤ 3 `--reference-video` (each ≤ 15 s). A prompt alone is refused | 3–15 s | output seconds (references free) |
+| `gemini-omni-flash-1.2-r2v` | prompt only (text-to-video), or ≤ 6 `--reference-image`. No `--reference-video` (refused) | 3–15 s | output seconds (references free) |
 | `gemini-omni-flash-1.2-edit` | one `--reference-video` ≤ 15 s; no duration, no aspect ratio | = the clip | the clip's length (server-measured) |
 | `gemini-omni-flash-1.2-extend` | one `--reference-video` (any length); no aspect ratio | 3–10 s appended | the appended seconds |
 | `gemini-omni-flash-1.2-upscale` | `video upscale --provider gemini`, clip ≤ 15 s | — | 4 / 8 / 15 cr/s to 720p / 1080p / 4k (5 cr minimum) |
@@ -41,7 +41,7 @@ quickdesign video models | jq '.data[] | select(.slug | startswith("gemini-omni-
 - **Aspect ratios**: `16:9`, `9:16` (edit / extend keep the source's).
 - **Audio**: native, always on.
 - References are **not** billed (unlike Seedance 2.0 r2v and Kling 4.0).
-- The server refuses an input the row does not list (a last frame on r2v, a 20 s clip on edit, 12 s on extend) **before** the charge.
+- The server refuses an input the row does not list (a last frame or a reference video on r2v, a 7th image, a 20 s clip on edit, 12 s on extend) **before** the charge.
 
 ## CLI
 
@@ -53,10 +53,10 @@ quickdesign video generate --provider seedance --model gemini-omni-flash-1.2-i2v
   --image start.jpg --end-image end.jpg --duration 8 --resolution 1080p --aspect-ratio 9:16 \
   -p '<action + the sounds each beat should make>. No subtitles or on-screen text.' -o clip.mp4 --wait
 
-# References (at least one --reference-image or --reference-video; a prompt alone is refused)
+# References: up to 6 images, or none at all (text-to-video). No --reference-video on this row.
 quickdesign video generate --provider seedance --model gemini-omni-flash-1.2-r2v \
-  --reference-image product.jpg --reference-video motion.mp4 --duration 10 --resolution 720p --aspect-ratio 16:9 \
-  -p 'A product shot like @Video1, featuring @Image1 …' -o clip.mp4 --wait
+  --reference-image product.jpg --duration 10 --resolution 720p --aspect-ratio 16:9 \
+  -p 'A slow product shot of the bottle from the reference image on a marble counter …' -o clip.mp4 --wait
 
 # Edit an existing clip (≤ 15 s; no --duration / --aspect-ratio)
 quickdesign video generate --provider seedance --model gemini-omni-flash-1.2-edit \
@@ -80,7 +80,8 @@ quickdesign video upscale --provider gemini --video <public url> --duration-seco
 3. **Extend only sees the last 10 s.** Describe what continues from the final frame, not the whole clip.
 4. **Only two aspect ratios.** A 1:1 or 4:5 request has to go to another model.
 5. `-i2v` and `-r2v` are one family in the app's pickers ("Gemini Omni Flash 1.2", Frames / References); on the CLI you name the slug.
-6. **No text-to-video on any row.** `-i2v` needs a start image and `-r2v` at least one reference image or video. fal's schema lists the references as optional, but the endpoint answers "At least one image_url or reference_video_url must be provided"; the server refuses a prompt-only `-r2v` request before the charge and names the fix. For text-to-video stay on the default (`./seedance-2.5.md`).
+6. **`-r2v` takes images only.** A `--reference-video` on it is refused before the charge: on this provider a video turns the request into an edit of that clip. For a new video that follows a reference video use the default (`./seedance-2.5.md`); to change a clip use `-edit`. A prompt alone is fine (text-to-video); `-i2v` still needs its start image.
+7. **Speech on an uploaded clip can be refused by Google.** Asking `-edit` to add or re-voice a person's speech was refused several times in November 2026 ("Input blocked: Using uploaded video or audio for video generation isn't available in your region", or a Responsible AI refusal), credits refunded; the identical request passed about an hour later. The provider's own page says Google restricts editing people's speech in videos. For spoken UGC use Seedance 2.5, or keep the Omni clip silent and add the voice separately.
 
 ## Cross-references
 

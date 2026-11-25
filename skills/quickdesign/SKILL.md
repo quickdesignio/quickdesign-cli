@@ -331,7 +331,7 @@ models/                            ← per-model reference cards (gotchas + prom
    nano-banana-2.md                ← Nano Banana 2.1 / 2 / Pro / Lite: 4:5, budget, text-to-image
    flux-3.md                       ← only on request: Flux 3 text/image-to-video
    gemini-omni-video.md            ← only on request: Gemini Omni image/video→video
-   gemini-omni-flash-1.2.md        ← only on request: Gemini Omni Flash 1.2 (fal) frames / references; its edit, extend and upscale tools
+   gemini-omni-flash-1.2.md        ← only on request: Gemini Omni Flash 1.2 (kie / fal) frames / references; its edit, extend and upscale tools
    kling-4.0.md                    ← only on request: Kling 4.0 (kie); fal Kling rows retired
    topaz-video-upscale.md          ← post-pipeline upscale
 ```
